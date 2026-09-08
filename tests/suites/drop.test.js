@@ -1,7 +1,11 @@
 import { suite } from '../harness.js';
 import { createCanvas } from '/src/core/util.js';
-import { droppedImageUrl } from '/src/io/open.js';
+import { createRasterLayer } from '/src/core/layer.js';
+import { droppedImageUrl, placeAsLayer } from '/src/io/open.js';
 import { paste } from '/src/edit/clipboard.js';
+import {
+  artworkOf, clearDropTarget, copyIntoDocument, cropTo, documentForTab, setDropTarget,
+} from '/src/ui/cross-doc-drag.js';
 
 /**
  * Dragging an image in from another browser tab, and pasting one, without
@@ -217,5 +221,199 @@ suite('drop / a paste that already fits still lands where it was copied', async 
     t.eq(t.inked(layer.canvas), 1000, 'exactly the 40x25 that was copied');
   } finally {
     t.app.clipboard = held;
+  }
+});
+
+/* ------------------------------------------------------------------ */
+/* Dragging between two open Pikado documents                          */
+/* ------------------------------------------------------------------ */
+
+/** A document-sized layer holding one solid rectangle, and nothing else. */
+function objectLayer(doc, color, x, y, w, h, name = 'object') {
+  const layer = createRasterLayer(doc.width, doc.height, name);
+  const c = layer.canvas.getContext('2d');
+  c.fillStyle = color;
+  c.fillRect(x, y, w, h);
+  doc.addLayer(layer);
+  return layer;
+}
+
+/** A stand-in tab, so the lookup can be tested without `elementFromPoint`. */
+function fakeTab(doc) {
+  const tab = document.createElement('div');
+  tab.className = 'pk-tab';
+  if (doc) tab.dataset.docId = doc.id;
+  const name = document.createElement('span');
+  name.className = 'pk-tab-name';
+  tab.appendChild(name);
+  return tab;
+}
+
+suite('drop / a picture from another document arrives whole', async (t) => {
+  /*
+   * The defect this guards: drawing the source at its own size. A layer buffer
+   * is document-sized with no offset, so a 400x300 document copied into a
+   * 100x100 one at 1:1 keeps a 100x100 window and loses the rest. Verified to
+   * fail by replacing the fit in `placeAsLayer` with `c.drawImage(source, 0, 0)`:
+   * inked() reports 10000 rather than 7500 and three of the four corners vanish.
+   */
+  const src = t.doc(400, 300, '#ffffff');
+  const art = createCanvas(400, 300);
+  const c = art.getContext('2d');
+  c.fillStyle = '#808080';
+  c.fillRect(0, 0, 400, 300);
+  const corners = [
+    ['#ff0000', 0, 0, '255,0,0,255', 2, 2],
+    ['#00ff00', 360, 0, '0,255,0,255', 97, 2],
+    ['#0000ff', 0, 260, '0,0,255,255', 2, 72],
+    ['#ffff00', 360, 260, '255,255,0,255', 97, 72],
+  ];
+  for (const [fill, x, y] of corners) { c.fillStyle = fill; c.fillRect(x, y, 40, 40); }
+
+  const dest = t.doc(100, 100, '#ffffff');
+  const layer = placeAsLayer(dest, art, 'from big');
+  t.ok(layer, 'a layer was placed');
+  // 400x300 into 100x100 fits at one quarter: 100x75 opaque pixels, centred.
+  t.eq(t.inked(layer.canvas), 7500, 'the whole picture is there, at a quarter size');
+  for (const [, , , expected, px, py] of corners) {
+    t.pixel(layer.canvas, px, py + 13, expected, `corner ${expected} survived`);
+  }
+  t.ok(src, 'source document still open');
+});
+
+suite('drop / a dragged layer arrives at a size you can use', async (t) => {
+  /*
+   * `flattenLayers` returns a canvas the size of the SOURCE document, so a
+   * 40x30 object living in a 400x300 document would be fitted as if it were
+   * 400x300 and land in a small document as a speck in the corner —
+   * uncropped and useless. Verified to fail by returning `flat` from
+   * `artworkOf` without `cropTo`: the canvas comes back 400x300 instead of
+   * 40x30, and the object measures 12x9 once placed rather than 40x30.
+   */
+  const src = t.doc(400, 300, '#ffffff');
+  const obj = objectLayer(src, '#ff0000', 20, 20, 40, 30, 'red square');
+  const art = artworkOf(src, [obj]);
+  t.eq([art.width, art.height], [40, 30], 'trimmed to what the layer actually covers');
+  t.eq(t.inked(art), 1200, 'and it is all object, no transparent margin');
+
+  const dest = t.doc(120, 90, '#ffffff');
+  const placed = placeAsLayer(dest, art, 'red square');
+  t.eq(t.inked(placed.canvas), 1200, 'it fits without scaling, so it stays 40x30');
+});
+
+suite('drop / a full-bleed layer is not needlessly recopied', async (t) => {
+  /*
+   * The identity path: when a layer covers its whole canvas there is nothing to
+   * trim, and `cropTo` must hand back the very same canvas rather than an
+   * equal-looking copy. Verified to fail by deleting the early return in
+   * `cropTo`: t.is drops to a different object. t.eq would NOT catch this — it
+   * is deep, so two identical canvases compare equal.
+   */
+  const src = t.doc(60, 40, '#ffffff');
+  const full = createCanvas(60, 40);
+  t.is(cropTo(full, { x: 0, y: 0, width: 60, height: 40 }), full, 'the same canvas, not a copy');
+  t.is(cropTo(full, null), full, 'and null bounds mean nothing to trim');
+  t.ok(src, 'source document still open');
+});
+
+suite('drop / copying into another document leaves the source alone', async (t) => {
+  /*
+   * Dragging a layer between documents copies it, as it does in Photoshop —
+   * the source must not lose the layer or gain a history step. Verified to
+   * fail by making `copyIntoDocument` remove the layer from the source first:
+   * the source drops to one layer and gains an undo step.
+   */
+  const src = t.doc(200, 200, '#ffffff');
+  const obj = objectLayer(src, '#ff0000', 10, 10, 50, 50, 'red square');
+  const dest = t.doc(100, 100, '#ffffff');
+  const srcLayers = src.layers.length;
+  const srcHistory = src.history.states.length;
+
+  t.app.setActiveDoc(src);
+  const placed = copyIntoDocument(dest, artworkOf(src, [obj]), 'red square');
+
+  t.ok(placed, 'the layer landed');
+  t.eq(dest.layers.length, 2, 'the destination gained exactly one layer');
+  t.eq(dest.layers[0].name, 'red square', 'and it kept its name');
+  t.is(t.app.activeDoc, dest, 'and we are now looking at the destination');
+  t.eq(src.layers.length, srcLayers, 'the source kept every layer');
+  t.eq(src.history.states.length, srcHistory, 'and gained no undo step');
+});
+
+suite('drop / a tab lookup finds its document, and never the one dragged', async (t) => {
+  /*
+   * Two failures this catches. Dropping a document on its own tab would
+   * duplicate it into itself; and a drag released anywhere that is not a tab —
+   * a Layers panel row, say — must not be read as a cross-document drop, or an
+   * ordinary reorder would turn into a copy. Verified to fail by removing the
+   * `exclude` comparison: "its own tab is refused" comes back with the source
+   * document instead of null.
+   *
+   * The `[data-doc-id]` in the selector is belt-and-braces and is NOT what
+   * these assertions rest on — a tab carrying no id looks up `undefined` and
+   * misses either way, so loosening the selector to `.pk-tab` changes no
+   * behaviour and turns nothing red. Said plainly, because a comment claiming
+   * a check that does not exist is worse than no comment.
+   */
+  const a = t.doc(50, 50, '#ffffff', 'doc A');
+  const b = t.doc(50, 50, '#ffffff', 'doc B');
+  const tabA = fakeTab(a);
+  const tabB = fakeTab(b);
+
+  t.is(documentForTab(tabB, a), b, 'another document’s tab resolves to it');
+  t.is(documentForTab(tabB.querySelector('.pk-tab-name'), a), b, 'a child of the tab counts too');
+  t.eq(documentForTab(tabA, a), null, 'but its own tab is refused');
+  t.eq(documentForTab(fakeTab(null), a), null, 'a tab naming no document is refused');
+
+  const row = document.createElement('div');
+  row.className = 'pk-lay-main';
+  t.eq(documentForTab(row, a), null, 'and a Layers panel row is not a tab');
+  t.eq(documentForTab(null, a), null, 'nor is nothing at all');
+});
+
+suite('drop / the drop target survives the tab bar rebuilding under it', async (t) => {
+  /*
+   * `tabbar.js` calls `root.replaceChildren()` on five different app events,
+   * including `doc-change` — so a highlight class written onto a tab node is
+   * thrown away the moment anything edits a document mid-drag. The id is the
+   * state, and `render()` re-applies it from that at the end of every rebuild.
+   *
+   * This drives the REAL render rather than repainting by hand, because the
+   * defect is precisely that `render()` might not repaint: a test that called
+   * `paintDropTarget()` itself would still pass with that call missing, which
+   * is the vacuous version of this test and the first one I wrote.
+   * `buildTabBar` renders synchronously, which also keeps this clear of rAF —
+   * a backgrounded tab never fires one.
+   *
+   * Verified to fail by having `setDropTarget` write the class onto the nodes
+   * itself and dropping the `paintDropTarget()` call from `render()`: the
+   * rebuilt bar comes back with nothing lit.
+   */
+  const { buildTabBar } = await import('/src/ui/tabbar.js');
+  const a = t.doc(50, 50, '#ffffff', 'doc A');
+  const b = t.doc(50, 50, '#ffffff', 'doc B');
+  const realRoot = document.getElementById('tabbar');
+  const scratch = document.createElement('div');
+  document.body.appendChild(scratch);
+
+  try {
+    setDropTarget(b);
+    buildTabBar(scratch);                      // a real, synchronous rebuild
+    const tabs = scratch.querySelectorAll('.pk-tab');
+    t.gt(tabs.length, 1, 'the rebuild produced tabs');
+    t.ok([...tabs].every((n) => n.dataset.docId), 'every tab names its document');
+
+    const lit = scratch.querySelectorAll('.pk-tab.is-drop-target');
+    t.eq(lit.length, 1, 'exactly one tab is still lit after the rebuild');
+    t.eq(lit[0].dataset.docId, b.id, 'and it is the one being dragged to');
+
+    clearDropTarget();
+    buildTabBar(scratch);
+    t.eq(scratch.querySelectorAll('.pk-tab.is-drop-target').length, 0, 'cleared, it stays dark');
+    t.ok(a, 'doc A still open');
+  } finally {
+    scratch.remove();
+    clearDropTarget();
+    if (realRoot) buildTabBar(realRoot);       // put the live tab bar back
   }
 });

@@ -1,0 +1,19 @@
+/* Drop targets shown while pixels are being dragged from one open document
+   into another. Both are outlines rather than fills: the thing being dragged
+   has to stay readable underneath. */
+
+.pk-tab.is-drop-target {
+  background: var(--accent-soft, rgba(120, 150, 255, .18));
+  box-shadow: inset 0 0 0 1px var(--accent, #7896ff);
+}
+
+.pk-tab.is-drop-target .pk-tab-name { color: var(--text-hi, #fff); }
+
+#canvas-area.pk-crossdoc-target::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 39;   /* below .pk-drop-overlay (40), which is the file-drop target */
+  box-shadow: inset 0 0 0 2px var(--accent, #7896ff);
+}

@@ -1448,6 +1448,7 @@ Never write outside your own list — parallel work depends on it.
 - `src/edit/{clipboard,fill-stroke}.js`
 - `src/render/{fast-blur,gpu-blend}.js`
 - `src/ui/{welcome,canvas-menu,brand,curve-editor,gradient-editor}.js`
+- `src/ui/cross-doc-drag.js` — dragging pixels between two open documents
 - `src/core/smart.js`
 - `src/core/{snap,snapping,layer-bounds}.js`
 - `src/text/{fonts,font-catalog,font-manager,font-previews,font-table}.js` + `scripts/fetch-google-fonts.mjs`

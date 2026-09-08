@@ -92,6 +92,25 @@ scaled down whole rather than having its edges cut off by the canvas edge — a
 layer buffer is document-sized, so pixels pushed outside it are not stored
 anywhere, and used to be lost in silence.
 
+### Between two of your own tabs
+
+Open documents are not sealed off from each other. Three ways across, all of
+which copy rather than move — the document you dragged from is left exactly as
+it was, with no undo step to unpick:
+
+- **Drag a document's tab onto the canvas.** That whole document arrives,
+  flattened, as one layer.
+- **Drag a layer onto another document's tab.** Just that layer, or the whole
+  selection if several are picked.
+- **Drag with the Move tool onto another document's tab.** Photoshop's own
+  gesture. The tab lights up; release, and Pikado takes you there.
+
+The same rule holds as for anything else arriving from outside: too big for
+where it is going means scaled down whole, never cropped. A dragged *layer* is
+measured by the pixels it actually covers rather than by the canvas it came
+from, so a small object out of a huge document arrives at a size you can work
+with instead of a speck in the corner.
+
 The footer states plainly how many projects are held in this browser and how many
 bytes that is, with the browser's own quota estimate in the tooltip — because an
 app that stores your work locally owes you a way to see it.

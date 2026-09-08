@@ -169,8 +169,15 @@ function documentFromFrames(frames, name) {
   return doc;
 }
 
-/** Place a canvas into an open document as a new layer, scaled to fit. */
-function placeAsLayer(doc, source, name) {
+/**
+ * Place a canvas into an open document as a new layer, scaled to fit.
+ *
+ * Exported because this is also what a drag between two open Pikado documents
+ * lands on (`src/ui/cross-doc-drag.js`). The contain-fit is the point: a layer
+ * buffer is document-sized with no offset, so drawing the source at its own
+ * size would put everything past the edge somewhere it is not stored.
+ */
+export function placeAsLayer(doc, source, name) {
   const layer = createRasterLayer(doc.width, doc.height, name);
   const scale = Math.min(1, doc.width / source.width, doc.height / source.height);
   const w = Math.max(1, Math.round(source.width * scale));

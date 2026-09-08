@@ -12,6 +12,9 @@ import { toHex } from '../../core/color.js';
 import { paramDialog } from '../dialog.js';
 import * as ops from '../../layers/ops.js';
 import {
+  artworkOf, clearDropTarget, copyIntoDocument, documentTabUnder, setDropTarget,
+} from '../cross-doc-drag.js';
+import {
   isSmartLayer, getSmartFilters, toggleSmartFilter, setSmartFiltersEnabled,
   removeSmartFilter, reorderSmartFilters, editSmartFilter, editSmartContents,
 } from '../../core/smart.js';
@@ -815,12 +818,33 @@ function buildLayersPanel(bodyEl) {
         }
         started = true;
         dragging = true;
-        dragState = { layers: set, target: null, intoRow: null };
+        dragState = { layers: set, target: null, intoRow: null, crossDoc: null };
         listEl.classList.add('dragging');
         for (const l of set) {
           const r = rowsById.get(l.id);
           if (r) r.classList.add('dragged');
         }
+      }
+      /*
+       * A drag that wanders onto another document's tab stops being a reorder
+       * and becomes a copy into that document. The reorder state is cleared on
+       * the way across, so only one of the two can happen on release.
+       */
+      const other = documentTabUnder(ev.clientX, ev.clientY, doc);
+      if (other) {
+        if (dragState.intoRow) {
+          dragState.intoRow.classList.remove('into');
+          dragState.intoRow = null;
+        }
+        dragState.target = null;
+        dragState.crossDoc = other;
+        dropLine.hidden = true;
+        setDropTarget(other);
+        return;
+      }
+      if (dragState.crossDoc) {
+        dragState.crossDoc = null;
+        setDropTarget(null);
       }
       autoScroll(ev);
       updateDropTarget(ev);
@@ -843,12 +867,24 @@ function buildLayersPanel(bodyEl) {
       dropLine.hidden = true;
       if (state && state.intoRow) state.intoRow.classList.remove('into');
       for (const r of rowsById.values()) r.classList.remove('dragged');
-      if (state && state.target) applyDrop(doc, state.layers, state.target);
+      clearDropTarget();
+      if (state && state.crossDoc) {
+        // A copy, not a move: the layer stays where it was, as it does in
+        // Photoshop when you drag one between two open documents.
+        copyIntoDocument(state.crossDoc, artworkOf(doc, state.layers), draggedName(state.layers));
+      } else if (state && state.target) {
+        applyDrop(doc, state.layers, state.target);
+      }
       scheduleRefresh(true);
     };
 
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+  }
+
+  /** What to call the layer that arrives in the other document. */
+  function draggedName(layers) {
+    return layers.length === 1 ? layers[0].name : `${layers.length} layers`;
   }
 
   function autoScroll(ev) {
