@@ -90,6 +90,39 @@ function placedCanvas(doc, src, x, y) {
   return cv;
 }
 
+/**
+ * Scale artwork down until it fits the document, and only then.
+ *
+ * A layer buffer is document-sized with no offset (ARCHITECTURE.md golden rule
+ * 3), so anything `placedCanvas` draws past the canvas edge is not stored
+ * anywhere — it is gone, and no amount of moving the layer afterwards brings it
+ * back. Pasting an image larger than the canvas therefore used to lose its
+ * sides in silence, which is what an image copied out of another browser tab
+ * usually is. Fitting keeps the whole picture.
+ *
+ * A clip that already fits is returned untouched rather than redrawn, so every
+ * paste that worked before stays byte-identical and lands where it always did.
+ */
+function fitToDocument(doc, src) {
+  const scale = Math.min(1, doc.width / src.width, doc.height / src.height);
+  if (scale >= 1) return src;
+  const w = Math.max(1, Math.round(src.width * scale));
+  const h = Math.max(1, Math.round(src.height * scale));
+  const out = createCanvas(w, h);
+  const c = out.getContext('2d');
+  c.imageSmoothingEnabled = true;
+  c.imageSmoothingQuality = 'high';
+  c.drawImage(src, 0, 0, w, h);
+  return out;
+}
+
+/** Say so when a paste had to be scaled, so its size is never a mystery. */
+function reportFit(art, clip) {
+  if (art === clip.canvas) return;
+  const percent = Math.round((art.width / clip.canvas.width) * 100);
+  app.toast(`Pasted at ${percent}% so the whole image fits the canvas`, 'ok', 3200);
+}
+
 /* ------------------------------------------------------------------ */
 /* Copy / Cut                                                          */
 /* ------------------------------------------------------------------ */
@@ -209,24 +242,31 @@ export function clear(doc, { label = 'Clear' } = {}) {
 /* Paste                                                               */
 /* ------------------------------------------------------------------ */
 
-/** Where a paste should land: the original spot for same-document pastes. */
-function pastePosition(doc, clip) {
-  if (clip.docId === doc.id && clip.bounds) {
+/**
+ * Where a paste should land: the original spot for same-document pastes.
+ *
+ * Those stored coordinates describe the artwork only while the artwork is
+ * unchanged — a clip scaled down to fit no longer belongs at them, so it is
+ * centred like anything else arriving from outside.
+ */
+function pastePosition(doc, clip, art) {
+  if (clip.docId === doc.id && clip.bounds && art === clip.canvas) {
     return { x: clip.bounds.x, y: clip.bounds.y };
   }
   const c = viewCenter(doc);
   return {
-    x: Math.round(c.x - clip.canvas.width / 2),
-    y: Math.round(c.y - clip.canvas.height / 2),
+    x: Math.round(c.x - art.width / 2),
+    y: Math.round(c.y - art.height / 2),
   };
 }
 
 function addPastedLayer(doc, clip, { name, mask = null, label = 'Paste' }) {
-  const pos = pastePosition(doc, clip);
+  const art = fitToDocument(doc, clip.canvas);
+  const pos = pastePosition(doc, clip, art);
   const layer = new Layer({
     type: LayerType.RASTER,
     name: name || nextLayerName(doc),
-    canvas: placedCanvas(doc, clip.canvas, pos.x, pos.y),
+    canvas: placedCanvas(doc, art, pos.x, pos.y),
   });
   if (mask) {
     layer.mask = mask;
@@ -237,6 +277,7 @@ function addPastedLayer(doc, clip, { name, mask = null, label = 'Paste' }) {
   doc.selection.clear();
   doc.emit('selection-change');
   doc.commit(label);
+  reportFit(art, clip);
   return layer;
 }
 
@@ -273,9 +314,10 @@ export async function pasteInto(doc, { outside = false } = {}) {
 
   // A "paste into" centres the artwork inside the selection rather than
   // restoring its original coordinates.
+  const art = fitToDocument(doc, clip.canvas);
   const pos = {
-    x: Math.round(b.x + (b.width - clip.canvas.width) / 2),
-    y: Math.round(b.y + (b.height - clip.canvas.height) / 2),
+    x: Math.round(b.x + (b.width - art.width) / 2),
+    y: Math.round(b.y + (b.height - art.height) / 2),
   };
 
   const mask = createCanvas(doc.width, doc.height);
@@ -295,7 +337,7 @@ export async function pasteInto(doc, { outside = false } = {}) {
   const layer = new Layer({
     type: LayerType.RASTER,
     name: nextLayerName(doc),
-    canvas: placedCanvas(doc, clip.canvas, pos.x, pos.y),
+    canvas: placedCanvas(doc, art, pos.x, pos.y),
   });
   layer.mask = mask;
   layer.maskEnabled = true;
@@ -305,6 +347,7 @@ export async function pasteInto(doc, { outside = false } = {}) {
   doc.selection.clear();
   doc.emit('selection-change');
   doc.commit(outside ? 'Paste Outside' : 'Paste Into');
+  reportFit(art, clip);
   return layer;
 }
 

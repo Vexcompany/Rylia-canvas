@@ -3,13 +3,16 @@
 A browser-based raster and vector image editor in the spirit of Photopea and
 Photoshop. Everything runs client-side — no server, no upload, no account.
 
-Two things reach the network, and only these two. **Generative Fill** is off
+Three things reach the network, and only these three. **Generative Fill** is off
 until you supply your own API key, and then sends the part of your image you
 selected to the provider you chose; it asks before the first time. **Web fonts**
 are downloaded from Google Fonts when you use one — a download, not an upload,
 kept on your device afterwards so it works offline, and switchable off in
-Preferences. Nothing else leaves your machine, and everything keeps working
-without either.
+Preferences. And an **image you drag in from another browser tab** is downloaded
+from wherever that image already lives — the same request the page you dragged
+it from had already made, sent without cookies and without a referrer, and only
+at the moment you make that drag. Nothing else leaves your machine, and
+everything keeps working without any of them.
 
 ```bash
 git clone https://github.com/koneb71/pikado.git
@@ -73,6 +76,21 @@ your recent projects with thumbnails, dimensions, layer counts and when you last
 touched them. Drop a file anywhere on the window and it opens — hold Shift to
 place it into the current document as a layer instead. Close the last document
 and the start screen comes back.
+
+Images dragged straight out of another browser tab open the same way, at their
+full size; you do not have to save them first. When the image sits inside a link
+— which on most sites it does — you get the picture rather than the page it
+points at, because the drag's markup is read before its URL list. Some sites
+refuse to let another page read their images at all, and there is no way around
+that from inside a tab: Pikado says which site refused and what to do instead
+(right-click the image, Copy image, then paste), rather than silently opening
+something it cannot use.
+
+Nothing that arrives this way is cropped. A drop opens at the image's own pixel
+size, and an image placed or pasted into a document too small to hold it is
+scaled down whole rather than having its edges cut off by the canvas edge — a
+layer buffer is document-sized, so pixels pushed outside it are not stored
+anywhere, and used to be lost in silence.
 
 The footer states plainly how many projects are held in this browser and how many
 bytes that is, with the browser's own quota estimate in the tooltip — because an

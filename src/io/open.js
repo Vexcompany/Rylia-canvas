@@ -317,6 +317,173 @@ export async function openFiles(files, opts = {}) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Images dragged out of another page                                  */
+/* ------------------------------------------------------------------ */
+
+/** Schemes we will fetch. Anything else — `javascript:`, `file:` — is refused. */
+const DROP_SCHEMES = new Set(['http:', 'https:', 'data:', 'blob:']);
+
+/**
+ * The first image in a drag's `text/html`, with its alt text.
+ *
+ * Parsed with `DOMParser` and never assigned to a live element: this is markup
+ * from another origin, and an `<img src>` in the live document would fetch as a
+ * side effect of merely reading it.
+ *
+ * A parsed document has no base URL, so a relative `src` cannot be resolved
+ * here and falls through to `text/uri-list`. Browsers write absolute URLs into
+ * drag markup, so that is the rare case rather than the normal one.
+ */
+function imageInMarkup(html) {
+  if (!html) return null;
+  let img = null;
+  try {
+    img = new DOMParser().parseFromString(html, 'text/html').querySelector('img[src]');
+  } catch (err) {
+    return null;
+  }
+  if (!img) return null;
+  return { url: img.getAttribute('src') || '', alt: (img.getAttribute('alt') || '').trim() };
+}
+
+/** The first real entry of a `text/uri-list`: it is line-based, and `#` comments. */
+function firstUri(raw) {
+  for (const line of String(raw || '').split(/[\r\n]+/)) {
+    const s = line.trim();
+    if (s && s[0] !== '#') return s;
+  }
+  return '';
+}
+
+/** An absolute URL in a scheme we are willing to fetch, or ''. */
+function usableUrl(raw) {
+  if (!raw) return '';
+  try {
+    const u = new URL(String(raw).trim());
+    return DROP_SCHEMES.has(u.protocol) ? u.href : '';
+  } catch (err) {
+    return '';   // relative, or not a URL at all
+  }
+}
+
+/**
+ * The image a drag is really carrying.
+ *
+ * `text/uri-list` looks like the obvious source and is the wrong one on its
+ * own: when the dragged image sits inside a link — which on most sites it does
+ * — the browser puts the *link's* href there, and the image's own `src` only in
+ * `text/html`. Reading the markup first is the difference between dragging a
+ * thumbnail off a search page and getting the picture, or getting the page it
+ * happened to point at.
+ *
+ * @param {{html?:string, uriList?:string, plain?:string}} data raw drag strings
+ * @returns {{url:string, alt:string}|null}
+ */
+export function droppedImageUrl(data = {}) {
+  const found = imageInMarkup(data.html);
+  const fromMarkup = usableUrl(found && found.url);
+  if (fromMarkup) return { url: fromMarkup, alt: found.alt };
+  const url = usableUrl(firstUri(data.uriList)) || usableUrl(firstUri(data.plain));
+  return url ? { url, alt: '' } : null;
+}
+
+/** A file name for a fetched image: the URL's last path segment, else its alt text. */
+function nameForUrl(url, alt) {
+  let name = '';
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'data:') {
+      const last = u.pathname.split('/').pop() || '';
+      try { name = decodeURIComponent(last).trim(); } catch (err) { name = last.trim(); }
+    }
+    if (!name) name = (alt || u.hostname || '').trim();
+  } catch (err) {
+    name = (alt || '').trim();
+  }
+  return name.replace(/[\\/:*?"<>|]+/g, '-').slice(0, 120) || 'Image';
+}
+
+/** The host to name in a failure message. */
+function hostOf(url) {
+  try {
+    return new URL(url).hostname || 'That site';
+  } catch (err) {
+    return 'That site';
+  }
+}
+
+/**
+ * Fetch an image dragged out of another page.
+ *
+ * Sent without cookies and without a referrer: this is the same request the
+ * page you dragged from already made, and Pikado has no business telling that
+ * server who you are or where the drag came from.
+ *
+ * A cross-origin image can only be *read* when the server allows it. There is a
+ * fallback that looks like it works — draw an `<img>` with no `crossOrigin`
+ * into a canvas — and it is a trap: the canvas is then tainted, `getImageData`
+ * throws, and the compositor, history, thumbnails and export all break on a
+ * document that otherwise looks fine. So a refusal is reported rather than
+ * worked around, and it names the route that always works.
+ *
+ * @returns {Promise<File|null>}
+ */
+async function fetchDroppedImage(url, name) {
+  let res;
+  try {
+    res = await fetch(url, { mode: 'cors', credentials: 'omit', referrerPolicy: 'no-referrer' });
+  } catch (err) {
+    app.toast(
+      `${hostOf(url)} does not let another site read its images. Right-click the image, `
+      + 'choose Copy image, then press Ctrl+V here.',
+      'error', 8000,
+    );
+    return null;
+  }
+  if (!res.ok) {
+    app.toast(`${hostOf(url)} refused the image (HTTP ${res.status}).`, 'error', 6000);
+    return null;
+  }
+  const blob = await res.blob();
+  if (!blob.size) {
+    app.toast('That image came back empty.', 'error');
+    return null;
+  }
+  const type = (blob.type || '').toLowerCase();
+  /*
+   * Servers do mislabel images as `application/octet-stream`, so an unhelpful
+   * type is not treated as a refusal — the decoder gets to decide. Only a type
+   * that is positively something else, which is what dragging a *link* gives
+   * you, is turned away here, because "the image has no pixels" would be a
+   * baffling thing to read after dropping a link.
+   */
+  const openable = /^image\//.test(type)
+    || KNOWN_EXTENSIONS.has(extensionOf(name))
+    || !type
+    || type === 'application/octet-stream'
+    || type === 'application/x-pikado';
+  if (!openable) {
+    app.toast('That link points at a page, not an image.', 'error', 5000);
+    return null;
+  }
+  return new File([blob], name, { type });
+}
+
+/**
+ * Open an image dragged out of another page. Fetching it is the only new step;
+ * everything after goes through `openFiles`, so a dragged PSD, SVG or animated
+ * GIF behaves exactly as the same file would coming off the disk.
+ */
+async function openDroppedUrl(url, alt, opts) {
+  const name = nameForUrl(url, alt);
+  // `app.busy` lowers the overlay in a `finally`, so two of them cannot be
+  // nested — this one has to finish before `openFiles` starts its own.
+  const file = await app.busy(`Fetching ${name}…`, () => fetchDroppedImage(url, name));
+  if (!file) return null;
+  return openFiles([file], opts);
+}
+
+/* ------------------------------------------------------------------ */
 /* Drag and drop + paste                                               */
 /* ------------------------------------------------------------------ */
 
@@ -342,15 +509,29 @@ export function installFileDrop(areaEl) {
     hint.style.visibility = app.activeDoc ? 'visible' : 'hidden';
   };
 
-  const hasFiles = (e) => {
+  /**
+   * Drags we take over.
+   *
+   * `Files` is the file system. `text/uri-list` is what a browser puts on the
+   * drag when you pull an image — or a link — out of a page, and it is exactly
+   * what separates those from a plain text selection, which carries
+   * `text/plain` and `text/html` and nothing else. The timeline's own
+   * frame-reorder drag sets `text/plain` alone for the same reason
+   * (src/ui/panels/timeline.js), so it stays out of this too.
+   *
+   * Dropping onto a field the user is typing in is left to the browser, which
+   * is what inserts the text they dragged there.
+   */
+  const isOpenableDrag = (e) => {
     const dt = e.dataTransfer;
-    if (!dt) return false;
-    if (dt.types) return [...dt.types].includes('Files');
-    return true;
+    if (!dt || isTextEntry(e.target)) return false;
+    if (!dt.types) return true;
+    const types = [...dt.types];
+    return types.includes('Files') || types.includes('text/uri-list');
   };
 
   window.addEventListener('dragenter', (e) => {
-    if (!hasFiles(e)) return;
+    if (!isOpenableDrag(e)) return;
     e.preventDefault();
     depth++;
     describe(e.shiftKey);
@@ -358,7 +539,7 @@ export function installFileDrop(areaEl) {
   });
 
   window.addEventListener('dragover', (e) => {
-    if (!hasFiles(e)) return;
+    if (!isOpenableDrag(e)) return;
     e.preventDefault();
     describe(e.shiftKey);
     if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
@@ -366,19 +547,40 @@ export function installFileDrop(areaEl) {
   });
 
   window.addEventListener('dragleave', (e) => {
-    if (!hasFiles(e)) return;
+    if (!isOpenableDrag(e)) return;
     depth = Math.max(0, depth - 1);
     if (depth === 0) hide();
   });
 
   window.addEventListener('drop', (e) => {
-    if (!hasFiles(e)) return;
+    if (!isOpenableDrag(e)) return;
+    /*
+     * Claimed, so the browser must not also do its default thing with it.
+     * Dropping an image or a link used to navigate the tab straight to it,
+     * taking the editor and everything open in it along — a worse outcome than
+     * any failure below, including the ones we cannot do anything about.
+     */
     e.preventDefault();
     hide();
     const dt = e.dataTransfer;
     const files = dt ? [...dt.files] : [];
-    if (!files.length) return;
     const opts = { asLayer: e.shiftKey && !!app.activeDoc };
+
+    if (!files.length) {
+      /*
+       * No File on the drag means it came out of a page rather than off the
+       * disk. Every string has to be read now, for the same reason the handle
+       * calls below are made synchronously: the DataTransfer is emptied the
+       * moment we await.
+       */
+      const found = droppedImageUrl({
+        html: dt ? dt.getData('text/html') : '',
+        uriList: dt ? dt.getData('text/uri-list') : '',
+        plain: dt ? dt.getData('text/plain') : '',
+      });
+      if (found) openDroppedUrl(found.url, found.alt, opts);
+      return;
+    }
 
     // Chromium hands over real file-system handles, which lets Save write a
     // project back to the file it came from. The calls have to be made now,

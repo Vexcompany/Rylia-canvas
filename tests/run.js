@@ -20,6 +20,7 @@ import './suites/effects.test.js';
 import './suites/text-vector.test.js';
 import './suites/fonts.test.js';
 import './suites/io.test.js';
+import './suites/drop.test.js';
 import './suites/smart.test.js';
 import './suites/liquify.test.js';
 import './suites/channels.test.js';
