@@ -880,6 +880,92 @@ suite('core / dragging a guide snaps it to the document, not to itself', async (
   }
 });
 
+suite('core / a transform handle lands where the cursor does', async (t) => {
+  /*
+   * The defect: `dragScale` measured the scale factor from the PIVOT, while
+   * the correction below it pinned the OPPOSITE handle. Those are different
+   * points, and the pivot sits half way, so every distance from it was half
+   * the one that mattered and the box travelled twice as far as the cursor.
+   * Pulling the top-left corner of a 200x150 box in by 60x50 scaled it to 0.4
+   * — an 80x60 box — instead of leaving the corner under the pointer.
+   *
+   * Nothing exercised scaling at all before this, which is how a 2x error
+   * survived: the transform test above drives `dragMove` only.
+   *
+   * Verified to fail by measuring from `p` again instead of `ref`: the first
+   * assertion reports the box as 220,200..300,250 rather than 160,150.
+   */
+  const { app } = await import('/src/core/app.js');
+  const { startTransform, transformPointerDown, transformPointerMove, transformPointerUp, cancelTransform } =
+    await import('/src/tools/transform.js');
+  const { createRasterLayer } = await import('/src/core/layer.js');
+
+  const was = { snap: app.snap, tool: app.tool && app.tool.id };
+  try {
+    app.snap = false;                       // exact numbers, not snapped ones
+    const doc = t.doc(600, 400, '#ffffff', 'scale-transform');
+    const l = createRasterLayer(600, 400, 'block');
+    const c = l.canvas.getContext('2d');
+    c.fillStyle = '#ff0000';
+    c.fillRect(100, 100, 200, 150);         // bounds (100,100)-(300,250)
+    doc.addLayer(l, { above: doc.layers[0] });
+    doc.selectedLayerIds = [l.id];
+    doc.activeLayerId = l.id;
+    app.setTool('move');
+
+    const view = app.viewport;
+    const base = { shiftKey: false, altKey: false, ctrlKey: false, metaKey: false, button: 0 };
+    // hitTest works in screen space, so the event has to carry real screen
+    // coordinates or the grab reads as "outside the box" and rotates instead.
+    const ev = (x, y, mods = {}) => {
+      const p = view.toScreen(x, y);
+      return { ...base, ...mods, x, y, sx: p.x, sy: p.y };
+    };
+    const box = () => {
+      const q = app.transformSession.quad;
+      return {
+        x: Math.round(Math.min(...q.map((p) => p.x))),
+        y: Math.round(Math.min(...q.map((p) => p.y))),
+        x2: Math.round(Math.max(...q.map((p) => p.x))),
+        y2: Math.round(Math.max(...q.map((p) => p.y))),
+      };
+    };
+
+    // --- a corner: the opposite one is pinned, so this one tracks exactly
+    t.ok(startTransform(doc, { mode: 'free' }), 'a transform session starts');
+    transformPointerDown(ev(100, 100), view);
+    t.eq(app.transformSession.drag.kind, 'corner', 'the top-left corner is grabbed');
+    t.eq(app.transformSession.drag.index, 0, 'and it is corner 0');
+    transformPointerMove(ev(160, 150), view);
+    t.eq(box(), { x: 160, y: 150, x2: 300, y2: 250 },
+      'the grabbed corner sits under the cursor and the far one has not moved');
+    transformPointerUp();
+    cancelTransform();
+
+    // --- an edge handle moves its own edge and leaves the opposite one
+    t.ok(startTransform(doc, { mode: 'free' }), 'a second session starts');
+    transformPointerDown(ev(300, 175), view);
+    t.eq(app.transformSession.drag.index, 1, 'the right edge is grabbed');
+    transformPointerMove(ev(260, 175), view);
+    t.eq(box(), { x: 100, y: 100, x2: 260, y2: 250 },
+      'the right edge follows the cursor, the left stays put');
+    transformPointerUp();
+    cancelTransform();
+
+    // --- Alt scales about the pivot instead, and still tracks the cursor
+    t.ok(startTransform(doc, { mode: 'free' }), 'a third session starts');
+    transformPointerDown(ev(100, 100, { altKey: true }), view);
+    transformPointerMove(ev(160, 150, { altKey: true }), view);
+    t.eq(box(), { x: 160, y: 150, x2: 240, y2: 200 },
+      'Alt pulls the far corner in by as much as the near one, pivot fixed');
+    transformPointerUp();
+    cancelTransform();
+  } finally {
+    app.snap = was.snap;
+    if (was.tool) app.setTool(was.tool);
+  }
+});
+
 suite('core / the other drag tools snap too', async (t) => {
   const { app } = await import('/src/core/app.js');
   await import('/src/tools/marquee.js');

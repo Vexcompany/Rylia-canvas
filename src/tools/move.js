@@ -316,11 +316,19 @@ class MoveTool extends Tool {
     });
     this.drag = null;
     this.forwarding = false;
+    /*
+     * Set when a press landed on layers that cannot be moved. Held rather than
+     * refused outright because the same gesture dragged onto another
+     * document's tab is a copy into that document, and a position lock has
+     * nothing to say about that. See `onPointerUp`.
+     */
+    this.blocked = null;
   }
 
   onDeactivate() {
     if (isTransforming()) commitTransform();
     this.drag = null;
+    this.blocked = null;
     if (clearSnapLines()) app.requestRender();
   }
 
@@ -401,9 +409,22 @@ class MoveTool extends Tool {
     }
 
     const layers = pixelMove
-      ? movableTargets([doc.activeLayer()].filter(Boolean), { warn: true })
-      : movableTargets(doc.selectedLayers(), { warn: true });
-    if (!layers.length) return;
+      ? movableTargets([doc.activeLayer()].filter(Boolean))
+      : movableTargets(doc.selectedLayers());
+    this.blocked = null;
+    if (!layers.length) {
+      /*
+       * Nothing here can be moved — most often a Background, which is what
+       * every freshly opened image is. Do not say so yet: dragging this same
+       * press onto another document's tab copies the pixels there, and the
+       * lock is about this layer's place in THIS stack, not about its pixels.
+       * `blocked` lets the view finish such a drop; if the release turns out
+       * to be an ordinary move after all, `onPointerUp` reports the lock then.
+       */
+      const held = (pixelMove ? [doc.activeLayer()] : doc.selectedLayers()).filter(Boolean);
+      if (held.length) this.blocked = { doc, layers: held };
+      return;
+    }
 
     const boxBounds = this.state.showTransform && !pixelMove ? layersBounds(layers) : null;
     const priorBounds = layers.map(peekBounds);
@@ -540,6 +561,13 @@ class MoveTool extends Tool {
     if (this.forwarding) {
       transformPointerUp(e);
       this.forwarding = false;
+      return;
+    }
+    // A press the tool refused, released somewhere that was not another
+    // document's tab: it really was just a move onto a locked layer, so say so.
+    if (this.blocked) {
+      this.blocked = null;
+      app.toast('The layer is locked and cannot be moved.', 'warn');
       return;
     }
     const d = this.drag;
