@@ -417,3 +417,56 @@ suite('drop / the drop target survives the tab bar rebuilding under it', async (
     if (realRoot) buildTabBar(realRoot);       // put the live tab bar back
   }
 });
+
+suite('drop / a locked Background can still be copied to another document', async (t) => {
+  /*
+   * The gesture people reach for first, on the documents they most often have
+   * open: two freshly opened images, each a single locked Background. The Move
+   * tool refused the press outright — "The layer is locked and cannot be
+   * moved" — so no drag ever started and a release over another document's tab
+   * had nothing to complete. The lock is about that layer's place in ITS OWN
+   * stack; copying its pixels into a different document is not a move, and
+   * Photoshop allows it.
+   *
+   * Verified to fail by restoring `movableTargets(..., { warn: true })` and the
+   * bare `if (!layers.length) return;` in MoveTool.onPointerDown: `blocked`
+   * stays null, so the two assertions about it fail and the copy that
+   * `canvas-view` builds from it could never run.
+   */
+  const src = t.doc(200, 150, '#3366cc', 'locked source');
+  const dest = t.doc(100, 100, '#ffffff', 'destination');
+  t.ok(src.layers[0].isBackground, 'the source is a single Background layer');
+  t.ok(src.layers[0].locked.position, 'and its position is locked');
+
+  const was = t.app.tool && t.app.tool.id;
+  const base = { shiftKey: false, altKey: false, ctrlKey: false, metaKey: false, button: 0 };
+  t.app.setActiveDoc(src);
+  t.app.setTool('move');
+  try {
+    const tool = t.app.tool;
+    tool.onPointerDown({ ...base, x: 100, y: 75, sx: 100, sy: 75 });
+    t.eq(tool.drag, null, 'the tool takes no drag — the layer cannot be moved');
+    t.ok(tool.blocked, 'but the press is held rather than thrown away');
+    t.is(tool.blocked.doc, src, 'holding the document it came from');
+    t.eq(tool.blocked.layers.length, 1, 'and the layer under it');
+
+    // Exactly what canvas-view does when such a press lands on another tab.
+    const before = src.history.states.length;
+    copyIntoDocument(dest, artworkOf(tool.blocked.doc, tool.blocked.layers), 'Background');
+    tool.blocked = null;
+    t.eq(dest.layers.length, 2, 'the destination gained the layer');
+    t.eq(dest.layers[0].name, 'Background', 'under its own name');
+    t.eq(src.layers.length, 1, 'the source kept its own');
+    t.eq(src.history.states.length, before, 'and gained no undo step');
+
+    // Released anywhere that is not a tab, it really was a move onto a lock.
+    t.app.setActiveDoc(src);
+    tool.onPointerDown({ ...base, x: 100, y: 75, sx: 100, sy: 75 });
+    t.ok(tool.blocked, 'a second press is held the same way');
+    tool.onPointerUp({ ...base, x: 100, y: 75, sx: 100, sy: 75 });
+    t.eq(tool.blocked, null, 'and an ordinary release reports the lock and clears it');
+  } finally {
+    if (t.app.tool) t.app.tool.blocked = null;
+    if (was) t.app.setTool(was);
+  }
+});

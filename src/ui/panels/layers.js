@@ -811,14 +811,21 @@ function buildLayersPanel(bodyEl) {
         if (Math.abs(ev.clientY - startY) < 4 && Math.abs(ev.clientX - startX) < 4) return;
         const sel = doc.selectedLayers();
         const set = sel.includes(item.layer) && sel.length > 1 ? sel : [item.layer];
-        if (set.some((l) => l.isBackground)) {
-          app.toast('The Background layer is locked in place.');
-          cleanup();
-          return;
-        }
         started = true;
         dragging = true;
-        dragState = { layers: set, target: null, intoRow: null, crossDoc: null };
+        /*
+         * A Background cannot be reordered, and the drag still starts: the
+         * same gesture dropped on another document's tab copies it there, and
+         * the lock is about its place in THIS stack rather than its pixels.
+         * Every freshly opened image is one locked Background, so refusing at
+         * the press made the gesture useless exactly when it is most wanted.
+         * `locked` moves the refusal to the release, by which point we know
+         * which of the two it was.
+         */
+        dragState = {
+          layers: set, target: null, intoRow: null, crossDoc: null,
+          locked: set.some((l) => l.isBackground),
+        };
         listEl.classList.add('dragging');
         for (const l of set) {
           const r = rowsById.get(l.id);
@@ -846,6 +853,12 @@ function buildLayersPanel(bodyEl) {
         dragState.crossDoc = null;
         setDropTarget(null);
       }
+      // No drop line for a layer that cannot be reordered — the only thing
+      // this drag can do is land on another document's tab.
+      if (dragState.locked) {
+        dropLine.hidden = true;
+        return;
+      }
       autoScroll(ev);
       updateDropTarget(ev);
     };
@@ -872,6 +885,8 @@ function buildLayersPanel(bodyEl) {
         // A copy, not a move: the layer stays where it was, as it does in
         // Photoshop when you drag one between two open documents.
         copyIntoDocument(state.crossDoc, artworkOf(doc, state.layers), draggedName(state.layers));
+      } else if (state && state.locked) {
+        app.toast('The Background layer is locked in place.');
       } else if (state && state.target) {
         applyDrop(doc, state.layers, state.target);
       }

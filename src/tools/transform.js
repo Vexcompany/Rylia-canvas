@@ -915,13 +915,28 @@ function dragScale(s, e, isCorner) {
   const at = squareToDoc(s) ? snapPoint(e.x, e.y, app.activeDoc, { exclude: s.layers }) : e;
   const q = inv.transformPoint(new DOMPoint(at.x, at.y));
   const src = isCorner ? cornersOfRect(s.bounds)[d.index] : edgeMidsOfRect(s.bounds)[d.index];
-  const r0x = src.x - p.x, r0y = src.y - p.y;
+  const anchor = isCorner
+    ? cornersOfRect(s.bounds)[(d.index + 2) % 4]
+    : edgeMidsOfRect(s.bounds)[(d.index + 2) % 4];
+
+  /*
+   * Measure the scale from whatever is actually staying put.
+   *
+   * Alt scales about the pivot. Without it the OPPOSITE handle is pinned (see
+   * the correction below), and the factor has to be measured from that handle
+   * or the two disagree: the pivot sits half way, so every distance from it is
+   * half the one that matters and the box travelled twice as far as the
+   * cursor. Dragging a corner of a 200x150 box in by 60x45 gave a scale of
+   * 0.4 — an 80x60 box — where the handle you are holding asks for 0.7.
+   */
+  const ref = e.altKey ? p : anchor;
+  const r0x = src.x - ref.x, r0y = src.y - ref.y;
 
   let nsx = d.params.sx, nsy = d.params.sy;
   const wantX = isCorner || d.index === 1 || d.index === 3;
   const wantY = isCorner || d.index === 0 || d.index === 2;
-  if (wantX && Math.abs(r0x) > 1e-6) nsx = (q.x - p.x) / r0x;
-  if (wantY && Math.abs(r0y) > 1e-6) nsy = (q.y - p.y) / r0y;
+  if (wantX && Math.abs(r0x) > 1e-6) nsx = (q.x - ref.x) / r0x;
+  if (wantY && Math.abs(r0y) > 1e-6) nsy = (q.y - ref.y) / r0y;
 
   if (e.shiftKey) {
     const fx = d.params.sx ? nsx / d.params.sx : 1;
@@ -938,9 +953,6 @@ function dragScale(s, e, isCorner) {
 
   if (!e.altKey) {
     // Keep the opposite handle pinned instead of scaling around the pivot.
-    const anchor = isCorner
-      ? cornersOfRect(s.bounds)[(d.index + 2) % 4]
-      : edgeMidsOfRect(s.bounds)[(d.index + 2) % 4];
     const before = applyM(matrixFrom(s, d.params, d.pivotRel), anchor);
     const after = applyM(matrixFrom(s, s.params, d.pivotRel), anchor);
     s.params.tx += before.x - after.x;

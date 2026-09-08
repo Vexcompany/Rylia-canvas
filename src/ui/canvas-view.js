@@ -390,9 +390,30 @@ export class CanvasView {
    * point rather than by listening on it.
    */
   _crossDocHover(e) {
+    if (!this._pointerDown) return;
+    const held = this._crossDocSource();
+    if (!held) return;
+    setDropTarget(documentTabUnder(e.clientX, e.clientY, held.doc));
+  }
+
+  /**
+   * The layers a Move press is holding, whether or not the tool took the drag.
+   *
+   * `tool.blocked` is the case that matters in practice: the Move tool refuses
+   * to start a drag on a locked layer, and a freshly opened image is a single
+   * locked Background — so without this, the one gesture people reach for
+   * first does nothing at all.
+   */
+  _crossDocSource() {
+    // Deliberately does NOT test `_pointerDown`: `_onUp` clears it before it
+    // asks, so gating here silently disabled every release.
     const tool = app.tool;
-    if (!this._pointerDown || !tool || tool.id !== 'move' || !tool.drag) return;
-    setDropTarget(documentTabUnder(e.clientX, e.clientY, tool.drag.doc || app.activeDoc));
+    if (!tool || tool.id !== 'move') return null;
+    const held = tool.drag || tool.blocked;
+    if (!held) return null;
+    const doc = held.doc || app.activeDoc;
+    const layers = (held.layers || []).filter(Boolean);
+    return doc && layers.length ? { doc, layers } : null;
   }
 
   /**
@@ -408,13 +429,17 @@ export class CanvasView {
    * @returns {boolean} true when the release was consumed
    */
   _crossDocRelease(e) {
-    const tool = app.tool;
-    if (!tool || tool.id !== 'move' || !tool.drag || typeof tool.abortDrag !== 'function') return false;
-    const { doc: source, layers } = tool.drag;
-    if (!source || !layers || !layers.length) return false;
-    const dest = documentTabUnder(e.clientX, e.clientY, source);
+    const held = this._crossDocSource();
+    if (!held) return false;
+    const dest = documentTabUnder(e.clientX, e.clientY, held.doc);
     if (!dest) return false;
-    tool.abortDrag();
+    const tool = app.tool;
+    // A drag the tool took is aborted, not committed. A press it refused never
+    // started one, so there is nothing to abort — only the pending complaint
+    // about the lock to drop, since this was a copy and not a move.
+    if (tool.drag && typeof tool.abortDrag === 'function') tool.abortDrag();
+    tool.blocked = null;
+    const { doc: source, layers } = held;
     const name = layers.length === 1 ? layers[0].name : `${layers.length} layers`;
     copyIntoDocument(dest, artworkOf(source, layers), name);
     return true;
