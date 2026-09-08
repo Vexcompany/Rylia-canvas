@@ -135,7 +135,7 @@ function header() {
     el('div.pk-wc-actions', {},
       el('button.pk-btn.primary', { type: 'button', text: 'New document', onclick: newDoc }),
       el('button.pk-btn', { type: 'button', text: 'Open file…', onclick: openFile }),
-      el('span.pk-wc-drop', { text: 'or drop a file anywhere on this window' })
+      el('span.pk-wc-drop', { text: 'or drop a file — or an image from another tab — anywhere on this window' })
     )
   );
 }

@@ -3,6 +3,9 @@ import { getViewComposite } from '../render/compositor.js';
 import { createCanvas } from '../core/util.js';
 import { snapLines } from '../core/snapping.js';
 import { OVERLAY } from './brand.js';
+import {
+  artworkOf, clearDropTarget, copyIntoDocument, documentTabUnder, setDropTarget,
+} from './cross-doc-drag.js';
 
 /**
  * The document view: draws the composite plus all on-canvas chrome
@@ -374,7 +377,47 @@ export class CanvasView {
       return;
     }
     if (app.tool) app.tool.onPointerMove(ev);
+    this._crossDocHover(e);
     this._lastDoc = { x: ev.x, y: ev.y };
+  }
+
+  /**
+   * Light another document's tab while a Move drag is held over it.
+   *
+   * The canvas takes `setPointerCapture` on pointerdown, so this handler keeps
+   * firing once the cursor has left the canvas — and the tab itself never
+   * receives a pointer event, which is why the tab is found by hit-testing the
+   * point rather than by listening on it.
+   */
+  _crossDocHover(e) {
+    const tool = app.tool;
+    if (!this._pointerDown || !tool || tool.id !== 'move' || !tool.drag) return;
+    setDropTarget(documentTabUnder(e.clientX, e.clientY, tool.drag.doc || app.activeDoc));
+  }
+
+  /**
+   * A Move drag released over another document's tab copies the layers there
+   * instead of finishing the move.
+   *
+   * The drag is *aborted*, not committed, so the source document is left as it
+   * was — dragging a layer between two open documents copies it, the way it
+   * does in Photoshop, rather than taking it out of where it came from. Abort
+   * first and the pixels read for the copy are the ones from before the drag
+   * started, not wherever the cursor had pushed them to.
+   *
+   * @returns {boolean} true when the release was consumed
+   */
+  _crossDocRelease(e) {
+    const tool = app.tool;
+    if (!tool || tool.id !== 'move' || !tool.drag || typeof tool.abortDrag !== 'function') return false;
+    const { doc: source, layers } = tool.drag;
+    if (!source || !layers || !layers.length) return false;
+    const dest = documentTabUnder(e.clientX, e.clientY, source);
+    if (!dest) return false;
+    tool.abortDrag();
+    const name = layers.length === 1 ? layers[0].name : `${layers.length} layers`;
+    copyIntoDocument(dest, artworkOf(source, layers), name);
+    return true;
   }
 
   _onUp(e) {
@@ -385,7 +428,12 @@ export class CanvasView {
     }
     if (!this._pointerDown) return;
     this._pointerDown = false;
+    clearDropTarget();
     if (!app.activeDoc) return;
+    if (this._crossDocRelease(e)) {
+      this._lastDoc = null;
+      return;
+    }
     const ev = this._normalize(e);
     if (app.tool) app.tool.onPointerUp(ev);
     this._lastDoc = null;

@@ -2,6 +2,10 @@ import { el, rafThrottle } from '../core/util.js';
 import { app } from '../core/app.js';
 import { icon } from './icons.js';
 import { confirmDialog } from './dialog.js';
+import {
+  artworkOfDocument, clearDropTarget, copyIntoDocument, documentTabUnder,
+  overCanvasArea, paintDropTarget, setCanvasTarget, setDropTarget,
+} from './cross-doc-drag.js';
 import './tabbar.css';
 
 /**
@@ -35,6 +39,7 @@ function render() {
     const active = doc === app.activeDoc;
     const tab = el(`div.pk-tab${active ? '.active' : ''}`, {
       title: `${doc.name} — ${doc.width} × ${doc.height}`,
+      dataset: { docId: doc.id },
       onclick: () => app.setActiveDoc(doc),
       onmousedown: (e) => {
         if (e.button === 1) {
@@ -42,6 +47,7 @@ function render() {
           closeDoc(doc);
         }
       },
+      onpointerdown: (e) => { if (e.button === 0) beginTabDrag(e, doc); },
     },
       el('span.pk-tab-name.pk-truncate', { text: doc.name }),
       doc.dirty ? el('span.pk-tab-dirty', { title: 'Unsaved changes' }) : null,
@@ -63,6 +69,51 @@ function render() {
       onclick: newDocument,
     })
   );
+
+  // Every tab above is brand new, so a drop target lit before this rebuild has
+  // just been thrown away with the old nodes. Put it back.
+  paintDropTarget();
+}
+
+/**
+ * Drag a document's tab onto another document to copy its picture in.
+ *
+ * An ordinary click on a tab still switches to it: a `click` only fires when
+ * the release lands on the element the press started on, so a drag that ends
+ * anywhere else never produces one. The 4px threshold matches the Layers
+ * panel's, so the two drags start feeling the same way.
+ */
+function beginTabDrag(e, doc) {
+  const startX = e.clientX, startY = e.clientY;
+  let started = false;
+
+  /** Where a release at (x, y) would put the picture, or null for nowhere. */
+  const destinationAt = (x, y) => documentTabUnder(x, y, doc)
+    || (overCanvasArea(x, y) && app.activeDoc && app.activeDoc !== doc ? app.activeDoc : null);
+
+  const move = (ev) => {
+    if (!started) {
+      if (Math.abs(ev.clientX - startX) < 4 && Math.abs(ev.clientY - startY) < 4) return;
+      started = true;
+    }
+    const onTab = documentTabUnder(ev.clientX, ev.clientY, doc);
+    setDropTarget(onTab);
+    setCanvasTarget(!onTab && !!destinationAt(ev.clientX, ev.clientY));
+  };
+
+  const up = (ev) => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', up);
+    if (!started) return;
+    const dest = destinationAt(ev.clientX, ev.clientY);
+    clearDropTarget();
+    if (dest) copyIntoDocument(dest, artworkOfDocument(doc), doc.name);
+  };
+
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', up);
 }
 
 async function closeDoc(doc) {
