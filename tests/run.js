@@ -28,6 +28,7 @@ import './suites/select.test.js';
 import './suites/camera-raw.test.js';
 import './suites/animation.test.js';
 import './suites/color-management.test.js';
+import './suites/apple-formats.test.js';
 import './suites/ai.test.js';
 import './suites/ai-credentials.test.js';
 import './suites/perf.test.js';

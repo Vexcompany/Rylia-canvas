@@ -6,13 +6,15 @@ import { writePSD } from './psd-write.js';
 import { exportSVG } from './svg.js';
 import { encodeGIF, encodeAnimatedGIF } from './gif.js';
 import { framesOf, applyFrame } from '../core/animation.js';
+import { encodeHEIC } from './heif-write.js';
+import { writeICNS } from './icns.js';
 
 /**
  * Saving and exporting.
  *
  * Saving writes the lossless `.pkd` project; exporting renders the composite
- * (or one file per top-level layer) to PNG/JPEG/WebP, or hands off to the PSD
- * and SVG writers.
+ * (or one file per top-level layer) to PNG/JPEG/WebP/HEIC/ICNS, or hands off to
+ * the PSD and SVG writers.
  */
 
 const MIME = {
@@ -20,6 +22,8 @@ const MIME = {
   jpeg: 'image/jpeg',
   jpg: 'image/jpeg',
   webp: 'image/webp',
+  heic: 'image/heic',
+  icns: 'image/icns',
 };
 
 /** Strip an extension and anything a file system would object to. */
@@ -27,10 +31,33 @@ function baseName(name) {
   return String(name || 'Untitled').replace(/\.[a-z0-9]{1,6}$/i, '').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'Untitled';
 }
 
+/**
+ * A file name that ends in `extension`. The Export dialog passes the name the
+ * user typed, without one, and the browser used to fill it in from the MIME
+ * type — which works for PNG and quietly does not for a type it has never heard
+ * of, like `image/icns`, leaving a file macOS will not recognise.
+ */
+function withExtension(name, extension) {
+  return name.toLowerCase().endsWith(`.${extension.toLowerCase()}`) ? name : `${name}.${extension}`;
+}
+
 function canvasToBlob(canvas, type, quality) {
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error(`Could not encode the image as ${type}`))), type, quality);
   });
+}
+
+/**
+ * Encode a rendered canvas as one of the single-image raster formats. HEIC and
+ * ICNS have their own writers; the rest are the browser's canvas encoders.
+ * @param {number} quality 0..1
+ */
+export function encodeRaster(canvas, format, quality, transparent) {
+  if (format === 'heic') return encodeHEIC(canvas, { quality, transparent });
+  if (format === 'icns') return writeICNS(canvas);
+  const mime = MIME[format];
+  if (!mime) throw new Error(`Unsupported export format "${format}"`);
+  return canvasToBlob(canvas, mime, quality);
 }
 
 /* ------------------------------------------------------------------ */
@@ -201,11 +228,14 @@ export async function exportDocument(doc, opts = {}) {
         })
         : encodeGIF(renderComposite(doc, scale, wantsTransparency), wantsTransparency);
       extension = 'gif';
+    } else if (format === 'icns') {
+      // An icon carries its own sizes, so the export scale does not apply.
+      blob = await encodeRaster(renderComposite(doc, 1, wantsTransparency), format);
     } else {
       const mime = MIME[format];
       if (!mime) throw new Error(`Unsupported export format "${format}"`);
       const canvas = renderComposite(doc, scale, wantsTransparency);
-      blob = await canvasToBlob(canvas, mime, quality);
+      blob = await encodeRaster(canvas, format, quality, wantsTransparency);
       if (blob.type && blob.type !== mime) {
         app.toast(`This browser cannot write ${format.toUpperCase()} — exported as ${blob.type.split('/')[1].toUpperCase()} instead.`, 'warn');
         extension = blob.type.split('/')[1] || format;
@@ -214,7 +244,7 @@ export async function exportDocument(doc, opts = {}) {
       }
     }
 
-    const filename = opts.filename || `${baseName(doc.name)}.${extension}`;
+    const filename = withExtension(opts.filename || baseName(doc.name), extension);
     if (shouldSave) {
       download(blob, filename);
       app.toast(`Exported ${filename}`, 'ok');
@@ -263,8 +293,7 @@ function contentBoundsOf(canvas) {
 export async function exportLayers(doc, opts = {}) {
   if (!doc) return null;
   const format = String(opts.format || 'png').toLowerCase();
-  const mime = MIME[format];
-  if (!mime) throw new Error(`Unsupported export format "${format}"`);
+  if (!MIME[format] || format === 'icns') throw new Error(`Unsupported layer export format "${format}"`);
   const scale = opts.scale && opts.scale > 0 ? opts.scale : 1;
   const quality = opts.quality == null ? 0.92 : Math.max(0.01, Math.min(1, opts.quality));
   const wantsTransparency = opts.transparent !== false && format !== 'jpeg' && format !== 'jpg';
@@ -294,7 +323,7 @@ export async function exportLayers(doc, opts = {}) {
       c.imageSmoothingQuality = 'high';
       c.drawImage(flat, bounds.x, bounds.y, bounds.width, bounds.height, 0, 0, width, height);
 
-      const blob = await canvasToBlob(out, mime, quality);
+      const blob = await encodeRaster(out, format, quality, wantsTransparency);
       const stem = baseName(layer.name || `Layer ${i + 1}`);
       const seen = (used.get(stem) || 0) + 1;
       used.set(stem, seen);
@@ -309,7 +338,7 @@ export async function exportLayers(doc, opts = {}) {
     }
 
     const zipBlob = zip.finish();
-    const filename = opts.filename || `${baseName(doc.name)}-layers.zip`;
+    const filename = withExtension(opts.filename || `${baseName(doc.name)}-layers`, 'zip');
     download(zipBlob, filename);
     app.toast(`Exported ${count} layer${count === 1 ? '' : 's'} to ${filename}`, 'ok');
     return zipBlob;

@@ -15,9 +15,11 @@ npm install
 npm run dev
 ```
 
-Vite is the only dependency. No framework, no TypeScript, no compile step to
-understand — `src/` is plain ES modules that a browser could load directly. If a
-change seems to need a build tool, it probably does not.
+Vite builds it; no framework, no TypeScript, no compile step to understand —
+`src/` is plain ES modules that a browser could load directly. If a change seems
+to need a build tool, it probably does not. The single runtime dependency is
+libheif-js, the HEIC decoder, loaded only when a HEIC is opened (see
+`src/io/heif-read.js` for why it is imported by URL rather than bundled).
 
 ## Running the tests
 

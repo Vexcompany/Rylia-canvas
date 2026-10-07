@@ -1,3 +1,5 @@
+import { isHEIF, heifColour } from '../io/heif-info.js';
+
 /**
  * Colour management: ICC profiles, conversions and soft proofing.
  *
@@ -558,7 +560,7 @@ export function makeTransform(from, to, opts = {}) {
   const dstBlack = blackPoint && to.blackPoint ? to.blackPoint : 0;
   const scaleBlack = srcBlack !== dstBlack;
 
-  return (rgb) => {
+  const transform = (rgb) => {
     // 1. encoded -> linear
     let lin;
     if (srcGray) {
@@ -631,18 +633,41 @@ export function makeTransform(from, to, opts = {}) {
       dstTRC.fromLinear(clamp01(out[2])),
     ];
   };
+
+  /*
+   * RGB matrix/TRC to RGB matrix/TRC, with nothing to compensate, is the common
+   * case — every built-in pair, and the Display P3 profile on every iPhone photo.
+   * It is three curves, one 3x3 matrix and three more curves, so say so:
+   * `transformImageData` runs that form from lookup tables instead of calling
+   * this per colour.
+   */
+  if (!srcLUT && !srcGray && !dstGray && !scaleBlack) {
+    transform.matrixForm = {
+      srcTRC,
+      dstTRC,
+      matrix: mm3(dstInv, adapt ? mm3(adapt, srcMatrix) : srcMatrix),
+    };
+  }
+  return transform;
 }
 
 /**
  * A 3×256³ transform is far too big; a per-channel table is not enough, because a
  * matrix mixes channels. So the transform runs per pixel, but memoised on the
- * exact 24-bit colour — real images have far fewer distinct colours than pixels,
- * and a flat area or a gradient hits the cache almost every time.
+ * exact 24-bit colour — a flat area or a gradient hits the cache almost every
+ * time.
+ *
+ * A photograph does not: twelve megapixels of camera noise is millions of
+ * distinct colours, and the memo then costs more than it saves. When the
+ * transform is plain matrix/TRC (see `matrixForm` above) it runs from tables
+ * instead, which is several times faster and agrees with the exact path to
+ * within rounding.
  *
  * @param {ImageData} image mutated in place
  */
 export function transformImageData(image, from, to, opts = {}) {
   const fn = makeTransform(from, to, opts);
+  if (fn.matrixForm) return transformByTables(image, fn.matrixForm);
   const d = image.data;
   const cache = new Map();
   for (let i = 0; i < d.length; i += 4) {
@@ -659,6 +684,37 @@ export function transformImageData(image, from, to, opts = {}) {
     d[i] = (hit >> 16) & 0xff;
     d[i + 1] = (hit >> 8) & 0xff;
     d[i + 2] = hit & 0xff;
+  }
+  return image;
+}
+
+/**
+ * Steps in the encoding table. It is indexed by the *square root* of the linear
+ * value, because every encoding curve is steepest near black: a table spaced
+ * evenly in linear light puts a gamma-2.2 destination's darkest step at almost
+ * two 8-bit levels, where this spacing keeps every step a small fraction of one.
+ */
+const ENCODE_STEPS = 16384;
+
+function transformByTables(image, { srcTRC, dstTRC, matrix: m }) {
+  const decode = new Float64Array(256);
+  for (let i = 0; i < 256; i++) decode[i] = srcTRC.toLinear(i / 255);
+  const encode = new Uint8Array(ENCODE_STEPS + 1);
+  for (let i = 0; i <= ENCODE_STEPS; i++) {
+    const s = i / ENCODE_STEPS;
+    encode[i] = Math.round(clamp01(dstTRC.fromLinear(s * s)) * 255);
+  }
+  const enc = (v) => encode[Math.round(Math.sqrt(v <= 0 ? 0 : v >= 1 ? 1 : v) * ENCODE_STEPS)];
+
+  const d = image.data;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] === 0) continue;
+    const r = decode[d[i]];
+    const g = decode[d[i + 1]];
+    const b = decode[d[i + 2]];
+    d[i] = enc(m[0] * r + m[1] * g + m[2] * b);
+    d[i + 1] = enc(m[3] * r + m[4] * g + m[5] * b);
+    d[i + 2] = enc(m[6] * r + m[7] * g + m[8] * b);
   }
   return image;
 }
@@ -993,13 +1049,15 @@ function readTextTag(bytes, dv, tag) {
 /* ------------------------------------------------------------------ */
 
 /**
- * Extract an embedded ICC profile from JPEG or PNG bytes.
+ * Extract an embedded ICC profile from JPEG, PNG or HEIC bytes.
  *
  * JPEG puts it in one or more APP2 segments introduced by `ICC_PROFILE\0`, which
  * have to be concatenated in sequence order. PNG puts it in an `iCCP` chunk,
  * zlib-deflated — and there is no way to inflate it without a decompressor, so
  * that case is reported honestly rather than half-handled. (`DecompressionStream`
- * exists in modern browsers, so it is used where available.)
+ * exists in modern browsers, so it is used where available.) HEIC carries it in
+ * the primary image's `colr` property, which `io/heif-info.js` knows how to
+ * find.
  *
  * @returns {Promise<Uint8Array|null>}
  */
@@ -1007,6 +1065,7 @@ export async function extractEmbeddedProfile(bytes) {
   const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   if (b[0] === 0xff && b[1] === 0xd8) return extractFromJPEG(b);
   if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return extractFromPNG(b);
+  if (isHEIF(b)) return (heifColour(b) || {}).icc || null;
   return null;
 }
 

@@ -1,5 +1,6 @@
 import { app } from '../core/app.js';
 import { createCanvas, loadImage, clamp } from '../core/util.js';
+import { decodeImage } from '../io/decode.js';
 import { compositeDocument, flattenLayers } from '../render/compositor.js';
 import { Layer, LayerType } from '../core/layer.js';
 import { nextLayerName } from '../layers/ops.js';
@@ -408,7 +409,9 @@ window.addEventListener('paste', async (e) => {
   if (!file) return;
   e.preventDefault();
   try {
-    const img = await loadImage(file);
+    // Through the shared decoder, so a pasted HEIC or icon file works like an
+    // opened one rather than failing in the browser's own image loader.
+    const img = await decodeImage(file);
     const clip = adoptImage(img);
     if (app.activeDoc) addPastedLayer(app.activeDoc, clip, { label: 'Paste' });
     else app.addDocument((await import('../core/document.js')).PikaDocument.fromImage(img, 'Pasted'));

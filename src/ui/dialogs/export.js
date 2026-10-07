@@ -4,6 +4,8 @@ import { el, createCanvas, formatBytes, download, debounce } from '../../core/ut
 import { Dialog } from '../dialog.js';
 import { compositeDocument, flattenLayers } from '../../render/compositor.js';
 import { encodeGIF } from '../../io/gif.js';
+import { encodeHEIC, heicEncodeSupport } from '../../io/heif-write.js';
+import { writeICNS, icnsSizesFor } from '../../io/icns.js';
 
 /**
  * File > Export As.
@@ -19,6 +21,10 @@ const FORMATS = [
   { value: 'webp', label: 'WebP', mime: 'image/webp', lossy: true, alpha: true, ext: 'webp' },
   { value: 'gif', label: 'GIF', mime: 'image/gif', lossy: false, alpha: true, ext: 'gif' },
   { value: 'svg', label: 'SVG', mime: 'image/svg+xml', lossy: false, alpha: true, ext: 'svg' },
+  { value: 'heic', label: 'HEIC', mime: 'image/heic', lossy: true, alpha: true, ext: 'heic' },
+  // An icon is one file holding every size macOS asks for, so it has no export
+  // scale and no per-layer mode.
+  { value: 'icns', label: 'ICNS (macOS icon)', mime: 'image/icns', lossy: false, alpha: true, ext: 'icns', icon: true },
 ];
 
 const SCALES = [0.5, 1, 2, 3];
@@ -67,6 +73,8 @@ function svgBlob(canvas) {
 async function encodeLocally(canvas, fmt, quality, transparent) {
   if (fmt.value === 'svg') return svgBlob(canvas);
   if (fmt.value === 'gif') return encodeGIF(canvas, transparent);
+  if (fmt.value === 'heic') return encodeHEIC(canvas, { quality: quality / 100, transparent });
+  if (fmt.value === 'icns') return writeICNS(canvas);
   const blob = await canvasToBlob(canvas, fmt.mime, fmt.lossy ? quality / 100 : undefined);
   return blob || (await canvasToBlob(canvas, 'image/png'));
 }
@@ -87,9 +95,9 @@ async function runExport(doc, opts) {
   const mod = await saveModule();
   if (mod && typeof mod.exportDocument === 'function') {
     try {
-      // io/save.js takes quality as 0..1; the dialog works in percent.
-      await mod.exportDocument(doc, { ...opts, quality: opts.quality / 100 });
-      return true;
+      // io/save.js takes quality as 0..1; the dialog works in percent. It
+      // reports its own failures and returns null, which is not "finished".
+      return !!(await mod.exportDocument(doc, { ...opts, quality: opts.quality / 100 }));
     } catch (err) {
       console.error('[export]', err);
     }
@@ -106,8 +114,7 @@ async function runExportLayers(doc, opts) {
   const mod = await saveModule();
   if (mod && typeof mod.exportLayers === 'function') {
     try {
-      await mod.exportLayers(doc, { ...opts, quality: opts.quality / 100 });
-      return true;
+      return !!(await mod.exportLayers(doc, { ...opts, quality: opts.quality / 100 }));
     } catch (err) {
       console.error('[export layers]', err);
     }
@@ -149,6 +156,18 @@ export async function showExportDialog(doc = app.activeDoc) {
   const source = compositeDocument(doc);
 
   const formatSelect = el('select.pk-select', {}, ...FORMATS.map((f) => el('option', { value: f.value, text: f.label })));
+  const heicOption = formatSelect.querySelector('option[value="heic"]');
+  const heicNote = el('div.pkd-note', { style: { display: 'none' } });
+  // Disabled, not hidden: someone looking for HEIC should find out why it is
+  // greyed out rather than conclude Pikado cannot write it anywhere.
+  heicEncodeSupport().then(({ ok, reason }) => {
+    heicOption.disabled = !ok;
+    if (!ok) {
+      heicOption.textContent = 'HEIC (not available in this browser)';
+      heicNote.textContent = reason;
+      heicNote.style.display = '';
+    }
+  });
   const qualityRange = el('input.pk-range', { type: 'range', min: 1, max: 100, step: 1, value: state.quality });
   const qualityNum = el('input.pk-num', { type: 'number', min: 1, max: 100, step: 1, value: state.quality });
   const qualityRow = el('div.pk-field', {}, el('label', { text: 'Quality' }), el('div.pk-slider-row', {}, qualityRange, qualityNum));
@@ -191,6 +210,17 @@ export async function showExportDialog(doc = app.activeDoc) {
 
   const estimate = debounce(async () => {
     const fmt = formatOf(state.format);
+    if (fmt.icon) {
+      const sizes = [...new Set(icnsSizesFor(doc.width, doc.height).map(([, s]) => s))];
+      let blob = null;
+      try { blob = await writeICNS(source); } catch { blob = null; }
+      info.replaceChildren(
+        el('div', {}, el('b', { text: `${sizes.join(', ')} px` }), ` · ${fmt.label}`),
+        el('div', { text: blob ? `Size ≈ ${formatBytes(blob.size)}` : 'Estimated size unavailable' }),
+        el('div', { text: Math.max(doc.width, doc.height) < 1024 ? 'Sizes above the document are left out rather than upscaled — 1024 px is the largest macOS uses.' : `Single file: ${state.filename || baseName(doc)}.${fmt.ext}` })
+      );
+      return;
+    }
     const w = Math.round(doc.width * state.scale);
     const h = Math.round(doc.height * state.scale);
     let probeScale = state.scale;
@@ -245,6 +275,9 @@ export async function showExportDialog(doc = app.activeDoc) {
     formatSelect.value = state.format;
     qualityRow.style.display = fmt.lossy ? '' : 'none';
     transparentRow.style.display = fmt.alpha ? '' : 'none';
+    sizeRow.style.display = fmt.icon ? 'none' : '';
+    allLayersRow.style.display = fmt.icon ? 'none' : '';
+    if (fmt.icon) state.allLayers = false;
     transparentInput.checked = state.transparent;
     allLayersInput.checked = state.allLayers;
     if (!skipButtons) {
@@ -256,6 +289,8 @@ export async function showExportDialog(doc = app.activeDoc) {
   }
 
   const field = (label, ...nodes) => el('div.pk-field', {}, el('label', { text: label }), ...nodes);
+  const sizeRow = field('Size', el('div.pkd-row', {}, scaleBtns, customScale, el('span.pk-unit', { text: '×' })));
+  const allLayersRow = el('label.pk-check', {}, allLayersInput, el('span', { text: 'Export all layers as separate files' }));
 
   dlg.setBody(
     el('div.pkd-cols', {},
@@ -264,10 +299,11 @@ export async function showExportDialog(doc = app.activeDoc) {
         field('File Name', nameInput),
         field('Format', formatSelect),
         qualityRow,
-        field('Size', el('div.pkd-row', {}, scaleBtns, customScale, el('span.pk-unit', { text: '×' }))),
+        sizeRow,
         transparentRow,
-        el('label.pk-check', {}, allLayersInput, el('span', { text: 'Export all layers as separate files' })),
-        el('div.pkd-note', { text: 'GIF is written with a 256-colour median-cut palette. SVG embeds the rendered raster.' })
+        allLayersRow,
+        el('div.pkd-note', { text: 'GIF is written with a 256-colour median-cut palette. SVG embeds the rendered raster.' }),
+        heicNote
       )
     )
   );
