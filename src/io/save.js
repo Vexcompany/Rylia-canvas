@@ -31,6 +31,16 @@ function baseName(name) {
   return String(name || 'Untitled').replace(/\.[a-z0-9]{1,6}$/i, '').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'Untitled';
 }
 
+/**
+ * A file name that ends in `extension`. The Export dialog passes the name the
+ * user typed, without one, and the browser used to fill it in from the MIME
+ * type — which works for PNG and quietly does not for a type it has never heard
+ * of, like `image/icns`, leaving a file macOS will not recognise.
+ */
+function withExtension(name, extension) {
+  return name.toLowerCase().endsWith(`.${extension.toLowerCase()}`) ? name : `${name}.${extension}`;
+}
+
 function canvasToBlob(canvas, type, quality) {
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error(`Could not encode the image as ${type}`))), type, quality);
@@ -234,7 +244,7 @@ export async function exportDocument(doc, opts = {}) {
       }
     }
 
-    const filename = opts.filename || `${baseName(doc.name)}.${extension}`;
+    const filename = withExtension(opts.filename || baseName(doc.name), extension);
     if (shouldSave) {
       download(blob, filename);
       app.toast(`Exported ${filename}`, 'ok');
@@ -328,7 +338,7 @@ export async function exportLayers(doc, opts = {}) {
     }
 
     const zipBlob = zip.finish();
-    const filename = opts.filename || `${baseName(doc.name)}-layers.zip`;
+    const filename = withExtension(opts.filename || `${baseName(doc.name)}-layers`, 'zip');
     download(zipBlob, filename);
     app.toast(`Exported ${count} layer${count === 1 ? '' : 's'} to ${filename}`, 'ok');
     return zipBlob;
