@@ -14,6 +14,8 @@ ffmpeg with libx265 must be on PATH for hevc-tiles.json.
   p3.heic          64x48, four vertical patches in Display P3 (values below),
                    with a matrix/TRC Display P3 ICC profile in its colr box —
                    which is what an iPhone writes.
+  p3.jpg           the same picture as p3.heic, as a JPEG carrying the same
+                   profile — so the suite can hold the two to the same result.
   alpha.heic       32x32 RGBA: left half opaque, right half alpha 64.
   hevc-tiles.json  Eight 64x64 HEVC intra pictures from ONE encoder session, so
                    they share a single hvcC — exactly what WebCodecs hands
@@ -144,9 +146,11 @@ def make_p3():
     for x in range(w):
         for y in range(h):
             px[x, y] = P3_PATCHES[x * len(P3_PATCHES) // w]
+    icc = build_p3_icc()
     heif = pillow_heif.from_pillow(img)
-    heif.info['icc_profile'] = build_p3_icc()
+    heif.info['icc_profile'] = icc
     heif.save(os.path.join(OUT, 'p3.heic'), quality=95, chroma=444)
+    img.save(os.path.join(OUT, 'p3.jpg'), quality=95, subsampling=0, icc_profile=icc)
 
 
 def make_alpha():

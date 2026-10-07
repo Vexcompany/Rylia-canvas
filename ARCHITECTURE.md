@@ -1087,8 +1087,21 @@ assignProfile(doc, profileOrId)          // relabels; pixels untouched
 convertToProfile(doc, profileOrId, opts) // moves pixels; appearance preserved
 proofOf(doc)  setProof(doc, patch)  proofActive(doc)  proofLabel(doc)
 applyProof(ctx, doc)                     // registered with the compositor
-adoptEmbeddedProfile(doc, fileBytes, {quiet})
+noteSourceProfile(doc, fileBytes)        // records doc.sourceProfileName; never relabels
 ```
+
+**An opened photo is sRGB.** The browser converts a tagged JPEG or PNG to sRGB
+while decoding, and `io/heif-read.js` does the same for HEIC, so by the time a
+document exists its pixels are sRGB numbers. `noteSourceProfile` records the
+file's profile *name* for the Assign and Convert dialogs to mention, and does not
+touch `doc.profile`. Labelling the document with the file's profile — which it
+used to — tells every Convert and proof to convert out of that profile again.
+
+`profileOf(doc)` returns `doc.profile` whenever it describes a space: primaries,
+a matrix or an A→B table for RGB, a tone curve for grey. It used to require
+`primaries`, which only the built-in RGB spaces have, so every profile read from
+a file — and Gray Gamma 2.2 — read as sRGB, and a document converted into one of
+them could not be converted back.
 
 Assign and Convert are separate commands because the difference between them is
 invisible until afterwards. Convert skips masks (coverage is not colour) and
@@ -1302,8 +1315,8 @@ asset it sits outside the module graph, keeps a content hash for caching, and is
 the npm file byte for byte. libheif does grids, rotation, mirroring, crops and
 alpha; it does not do colour management, so `heif-read.js` converts from the
 embedded ICC profile (or nclx primaries) to sRGB with `transformImageData` —
-because that is what the browser does to a JPEG, and the document is then
-labelled by the same `adoptEmbeddedProfile` that labels one. `heif-info.js` is a
+because that is what the browser does to a JPEG. From there it is treated as an
+opened JPEG is: sRGB, with the file's profile noted by `noteSourceProfile`. `heif-info.js` is a
 separate, import-free leaf because `icc.js` needs it to find a HEIC's profile and
 `heif-read.js` needs `icc.js`.
 

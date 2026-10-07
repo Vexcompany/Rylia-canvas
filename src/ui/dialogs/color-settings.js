@@ -23,6 +23,21 @@ function resolve(doc, value) {
   return availableProfiles(doc).find((p) => (p.id === 'embedded' ? 'embedded' : p.id) === value) || null;
 }
 
+/**
+ * Where an opened photo's colours came from, when that was not sRGB. Opening
+ * converts them to sRGB, so without this the file's own profile would simply
+ * vanish from view — and that is what someone reaching for Assign or Convert
+ * most needs to know.
+ */
+function sourceNote(doc) {
+  if (!doc.sourceProfileName) return [];
+  return [{
+    type: 'label',
+    className: 'pk-hint pk-source-profile',
+    label: `Opened from a file tagged ${doc.sourceProfileName}; its colours were converted to sRGB as it opened.`,
+  }];
+}
+
 /** Image > Assign Profile… */
 export async function showAssignProfileDialog(doc = app.activeDoc) {
   if (!doc) return false;
@@ -32,6 +47,7 @@ export async function showAssignProfileDialog(doc = app.activeDoc) {
   const dialog = new Dialog({ title: 'Assign Profile', width: 420 });
   const form = buildForm([
     { type: 'label', label: `This document is currently ${current.name}` },
+    ...sourceNote(doc),
     { key: 'profile', label: 'Profile', type: 'select', options: profileOptions(doc) },
     {
       type: 'label',
@@ -77,6 +93,7 @@ export async function showConvertProfileDialog(doc = app.activeDoc) {
 
   form = buildForm([
     { type: 'label', label: `Source: ${current.name}` },
+    ...sourceNote(doc),
     { key: 'profile', label: 'Destination', type: 'select', options: profileOptions(doc) },
     { key: 'intent', label: 'Intent', type: 'select', options: INTENTS },
     { key: 'blackPoint', label: 'Use Black Point Compensation', type: 'checkbox' },

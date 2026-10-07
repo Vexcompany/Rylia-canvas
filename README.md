@@ -123,9 +123,9 @@ A HEIC — what every iPhone has shot in since 2017 — opens like any other pho
 in every browser. Safari decodes it natively; everywhere else Pikado loads
 libheif (compiled to WebAssembly) the first time you open one and keeps it for
 the rest of the session. The colour is handled the way it is for a JPEG: an
-iPhone photo carries a Display P3 profile, and the pixels are converted from it,
-so the same photo opens looking the same whether it arrived as HEIC or as JPEG,
-with the document labelled Display P3. What opens is the photo itself — the
+iPhone photo carries a Display P3 profile, and the pixels are converted from it
+into sRGB, so the same photo opens looking the same — and holding the same
+numbers — whether it arrived as HEIC or as JPEG. What opens is the photo itself — the
 primary image — and not the HDR gain map, depth map or the other frames of a
 burst that the file may also hold.
 
@@ -383,8 +383,12 @@ exactly on each profile's white point, a profile-to-itself transform has to be t
 identity to floating-point precision, and a round trip through a wider gamut has
 to be lossless.
 
-Embedded profiles are read from JPEG (APP2), PNG (iCCP) and HEIC (`colr`) when you
-open a file.
+A JPEG, PNG or HEIC that carries a colour profile is converted from it into sRGB
+as it opens — by the browser for JPEG and PNG, by Pikado for HEIC — and the
+document is sRGB, because that is what its pixels now are. Labelling it with the
+file's profile instead would make every later Convert and proof convert out of
+that profile a second time. The file's profile is not dropped silently: Assign
+and Convert to Profile say what the colours were converted from.
 Matrix/TRC profiles only — LUT-based profiles are declined with a reason rather
 than misinterpreted, and since Perceptual and Saturation live entirely in those
 tables, those two intents behave as Relative Colorimetric and the dialog tells you

@@ -20,9 +20,9 @@ import libheifUrl from 'libheif-js/libheif-wasm/libheif-bundle.mjs?url';
  * sRGB pixels; libheif hands back the P3 numbers untouched. Left alone, every
  * iPhone photo would open visibly duller than the same photo as a JPEG. So the
  * pixels are converted to sRGB here, with the same ICC engine Convert to Profile
- * uses, and the document is labelled with the embedded profile afterwards by the
- * same code that labels a JPEG (`adoptEmbeddedProfile`). One photo, one result,
- * whichever format it arrived in.
+ * uses, and from there the document is treated exactly like an opened JPEG: it
+ * is sRGB, and `noteSourceProfile` records the profile it came from. One photo,
+ * one result, whichever format it arrived in.
  *
  * The colour information comes from `heif-info.js`, which reads the container
  * without decoding anything.

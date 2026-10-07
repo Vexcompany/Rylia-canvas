@@ -205,39 +205,28 @@ export async function openImageBlob(blob, name = 'Image', opts = {}) {
   const canvas = await decodeImage(blob);
   if (target) return placeAsLayer(target, canvas, name);
   const doc = documentFromCanvas(canvas, name);
-  await adoptProfileFrom(blob, doc);
-  /*
-   * Re-baseline history AFTER adopting the profile. `documentFromCanvas` clears
-   * history to a single 'Open' state, and the profile is part of a history state, so
-   * adopting it afterwards left the baseline holding `profile: null` — the very first
-   * undo threw the embedded profile away and relabelled the document sRGB.
-   */
-  doc.history.clear('Open');
-  doc.dirty = false;
+  await noteProfileOf(blob, doc);
   return adopt(doc);
 }
 
 /**
- * Adopt a JPEG's, PNG's or HEIC's embedded ICC profile, if it has one we can read.
+ * Remember which colour profile a JPEG, PNG or HEIC was tagged with.
  *
- * Loaded on demand: the ICC machinery is a few hundred lines nothing else in the
- * open path needs. Failure is deliberately quiet — an unsupported profile (a
- * LUT-based one, which is most CMYK profiles) is common and is not the user's
- * problem at the moment they open a photograph. The document then behaves as
- * untagged sRGB, which is what 8-bit RGB is anyway.
+ * The document stays sRGB: its pixels were converted out of that profile while
+ * they were decoded, so sRGB is what they are (see `noteSourceProfile`). This
+ * only records where they came from, for the colour dialogs to mention.
  *
- * The canvas has already decoded the pixels by this point, and the browser
- * applied the profile itself while decoding — so what this does is *label* the
- * document with the space it came from, which is what Assign, Convert and soft
- * proofing then work from.
+ * Loaded on demand — the ICC machinery is a few hundred lines nothing else in
+ * the open path needs — and quiet about failure, because an unreadable profile
+ * is not the user's problem at the moment they open a photograph.
  */
-async function adoptProfileFrom(blob, doc) {
+async function noteProfileOf(blob, doc) {
   try {
     const bytes = new Uint8Array(await blob.arrayBuffer());
-    const { adoptEmbeddedProfile } = await import('../color/manage.js');
-    await adoptEmbeddedProfile(doc, bytes, { quiet: true });
+    const { noteSourceProfile } = await import('../color/manage.js');
+    await noteSourceProfile(doc, bytes);
   } catch (err) {
-    console.info('[open] no usable embedded colour profile', err);
+    console.info('[open] could not read the embedded colour profile', err);
   }
 }
 

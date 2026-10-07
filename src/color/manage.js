@@ -413,17 +413,25 @@ export function applyProof(ctx, doc) {
 /* ------------------------------------------------------------------ */
 
 /**
- * Look for an embedded profile in an opened file and attach it to the document.
+ * Note which profile an opened image was tagged with — as information, not as
+ * the document's profile.
  *
- * Deliberately quiet about failure. An unreadable or unsupported profile is
- * common (LUT-based profiles are everywhere) and is not the user's problem at the
- * moment they open a photograph — the document falls back to sRGB, which is what
- * an untagged 8-bit image is anyway. A *readable* profile that differs from sRGB
- * is worth a toast, because it changes how the file will look.
+ * By the time this runs the pixels have already been converted *out of* that
+ * profile into sRGB: by the browser while decoding a JPEG or PNG, and by
+ * `io/heif-read.js` for a HEIC. The document therefore is sRGB, and labelling
+ * it with the file's profile would make every Convert and soft proof convert
+ * out of that profile a second time. It used to do exactly that; the only
+ * reason nobody saw the double conversion is that `profileOf` was ignoring
+ * every profile read from a file.
  *
- * @returns {Promise<object|null>} the profile, when one was adopted
+ * What is kept is the name, so the colour dialogs can say what the colours
+ * were converted from — including a CMYK profile, which the browser converts
+ * from like any other. It is not part of history and is not saved: it
+ * describes the file the document came from, which no edit changes.
+ *
+ * @returns {Promise<string|null>} the profile's name, when one was noted
  */
-export async function adoptEmbeddedProfile(doc, fileBytes, { quiet = false } = {}) {
+export async function noteSourceProfile(doc, fileBytes) {
   if (!doc || !fileBytes) return null;
   let raw;
   try {
@@ -432,30 +440,12 @@ export async function adoptEmbeddedProfile(doc, fileBytes, { quiet = false } = {
     return null;
   }
   if (!raw) return null;
-
   const result = parseICC(raw);
-  if (!result.ok) {
-    console.info(`[color] embedded profile ignored: ${result.reason}`);
-    return null;
-  }
-  /*
-   * A CMYK profile now *parses* — its A2B0 table is read like any other — but
-   * it cannot be attached, because a document has no four-channel pixel
-   * carrier to attach it to. Saying so is the point: "CMYK profiles are not
-   * supported" was true of the parser and is no longer, and a user whose file
-   * carries one deserves the actual reason rather than a stale one.
-   */
-  if (result.profile && result.profile.space === 'cmyk') {
-    console.info('[color] embedded CMYK profile read but not attached: Pikado has no CMYK document mode');
-    if (!quiet) {
-      app.toast(`${result.profile.name} is a CMYK profile — Pikado has no CMYK document mode yet, so the image is treated as RGB.`, 'warn', 6000);
-    }
-    return null;
-  }
-  doc.profile = result.profile;
-  doc.invalidate();
-  if (!quiet) app.toast(`Colour profile: ${result.profile.name}`, 'info');
-  return result.profile;
+  const name = (result.ok ? result.profile.name : result.description) || '';
+  // Tagged sRGB means nothing was converted, so there is nothing to say.
+  if (!name || /^sRGB\b/i.test(name)) return null;
+  doc.sourceProfileName = name;
+  return name;
 }
 
 // The compositor cannot import this module (it would be a cycle), so hand it the

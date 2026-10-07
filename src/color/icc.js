@@ -237,10 +237,27 @@ export function getProfile(id) {
   return BUILTIN_PROFILES.find((p) => p.id === id) || null;
 }
 
+/**
+ * Whether a profile object actually describes a colour space: RGB needs
+ * primaries, a matrix or an A→B table to get to the connection space, grey needs
+ * its tone curve.
+ *
+ * Checking for `primaries` alone used to be the test, and only the built-in RGB
+ * spaces have those. Every profile read from a file has a matrix instead, and
+ * Gray Gamma 2.2 has neither — so all of them were quietly treated as sRGB. A
+ * document converted into its file's profile, or into grey, then could not be
+ * converted back: Convert said it was "already sRGB".
+ */
+function describesSpace(p) {
+  if (!p || typeof p !== 'object') return false;
+  if (p.space === 'gray') return !!p.trc;
+  return !!(p.primaries || p.matrix || (p.lut && typeof p.lut.eval === 'function'));
+}
+
 /** The document's profile, defaulting to sRGB — which is what 8-bit RGB is. */
 export function profileOf(doc) {
   if (!doc) return getProfile(DEFAULT_PROFILE_ID);
-  if (doc.profile && doc.profile.primaries) return doc.profile;
+  if (describesSpace(doc.profile)) return doc.profile;
   if (typeof doc.profile === 'string') return getProfile(doc.profile) || getProfile(DEFAULT_PROFILE_ID);
   return getProfile(DEFAULT_PROFILE_ID);
 }

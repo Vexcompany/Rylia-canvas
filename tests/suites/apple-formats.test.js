@@ -7,7 +7,7 @@ import { isHEIF, heifColour } from '/src/io/heif-info.js';
 import { decodeHEIF } from '/src/io/heif-read.js';
 import { muxHEIF, toI420, tileSizeFor, quantizerFor, heicEncodeSupport } from '/src/io/heif-write.js';
 import { isICNS, icnsEntries, readICNS, writeICNS, unpackIconRLE } from '/src/io/icns.js';
-import { getProfile, transformImageData } from '/src/color/icc.js';
+import { getProfile, profileOf, transformImageData } from '/src/color/icc.js';
 
 /**
  * HEIC and ICNS — the two Apple formats.
@@ -54,21 +54,23 @@ suite('apple formats / HEIC is told apart from AVIF by its brands', async (t) =>
   t.eq(heifColour(new Uint8Array(64)), null, 'garbage has no colour information, and does not throw');
 });
 
-suite('apple formats / an iPhone-style HEIC opens as sRGB, labelled Display P3', async (t) => {
+suite('apple formats / an iPhone-style HEIC opens as sRGB, exactly as the same JPEG does', async (t) => {
   const bytes = await fixture('p3.heic');
+  // Patch 3 is (200, 120, 60) in Display P3. In sRGB that is a more saturated
+  // orange; left unconverted it would open dull.
+  const expected = new ImageData(1, 1);
+  expected.data.set([200, 120, 60, 255]);
+  transformImageData(expected, getProfile('display-p3'), getProfile('srgb'));
+  const want = Array.from(expected.data);
+
   // The type a Chrome file picker reports for a .heic: nothing.
   const doc = await openFile(new File([bytes], 'IMG_0001.HEIC', { type: '' }));
   try {
     t.eq([doc.width, doc.height], [64, 48], 'opens at its own size');
     t.eq(doc.name, 'IMG_0001', 'named after the file');
-    t.eq(doc.profile && doc.profile.name, 'Display P3', 'labelled with the embedded profile, as a JPEG would be');
+    t.eq(profileOf(doc).id, 'srgb', 'the document is sRGB, because its pixels were converted into sRGB');
+    t.eq(doc.sourceProfileName, 'Display P3', 'and it remembers the profile the file came with');
 
-    // Patch 3 is (200, 120, 60) in Display P3. In sRGB that is a more
-    // saturated orange; left unconverted it would open dull.
-    const expected = new ImageData(1, 1);
-    expected.data.set([200, 120, 60, 255]);
-    transformImageData(expected, getProfile('display-p3'), getProfile('srgb'));
-    const want = Array.from(expected.data);
     const got = rgbaAt(doc.layers[0].canvas, 40, 24);
     t.ok(within(got, want, 3), `P3 orange converted to sRGB: got ${got}, want ${want}`);
     t.gt(got[0] - 200, 8, 'and visibly not the unconverted P3 numbers');
@@ -76,6 +78,17 @@ suite('apple formats / an iPhone-style HEIC opens as sRGB, labelled Display P3',
     t.eq(doc.dirty, false, 'a freshly opened HEIC is not dirty');
   } finally {
     t.app.closeDocument(doc);
+  }
+
+  // The same picture as a JPEG, carrying the same profile. The browser converts
+  // that one; heif-read.js converts the HEIC. They must agree.
+  const jpeg = await openFile(new File([await fixture('p3.jpg')], 'IMG_0001.JPG', { type: 'image/jpeg' }));
+  try {
+    const fromJpeg = rgbaAt(jpeg.layers[0].canvas, 40, 24);
+    t.ok(within(fromJpeg, want, 3), `the JPEG of the same photo opens with the same colour: ${fromJpeg}`);
+    t.eq([profileOf(jpeg).id, jpeg.sourceProfileName], ['srgb', 'Display P3'], 'and is described the same way');
+  } finally {
+    t.app.closeDocument(jpeg);
   }
 
   const renamed = await openFile(new File([bytes], 'renamed.jpg', { type: 'image/jpeg' }));

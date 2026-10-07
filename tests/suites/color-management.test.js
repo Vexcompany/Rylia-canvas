@@ -15,6 +15,7 @@ import { Layer, LayerType } from '/src/core/layer.js';
 import { rasterizeTextLayer, defaultTextProps } from '/src/text/text-render.js';
 import { DEFAULT_STYLES } from '/src/effects/styles.js';
 import { savePKD, loadPKD } from '/src/io/pkd.js';
+import { openFile } from '/src/io/open.js';
 
 /**
  * Colour management.
@@ -511,10 +512,88 @@ suite('color / the profile is part of the document, not just of the view', async
     t.eq(back2.profile.matrix.length, 9, 'and its matrix');
   }
 
-  // The open path must actually reach adoptEmbeddedProfile.
+  // The open path must actually read the file's profile — what it does with it
+  // is the next suite.
   const openSrc = await (await fetch('/src/io/open.js')).text();
-  t.ok(/adoptEmbeddedProfile/.test(openSrc),
-    'src/io/open.js calls adoptEmbeddedProfile, so the README claim about opening files is true');
+  t.ok(/noteSourceProfile/.test(openSrc),
+    'src/io/open.js calls noteSourceProfile, so the README claim about opening files is true');
+});
+
+suite('color / an opened photo is labelled with the space its pixels are in', async (t) => {
+  /*
+   * Two defects that hid each other.
+   *
+   *   - Opening a tagged JPEG, PNG or HEIC labelled the document with the file's
+   *     profile, although the pixels had already been converted out of it into
+   *     sRGB while decoding. sRGB numbers, labelled Display P3.
+   *   - `profileOf` only believed a profile that had `primaries`, which no
+   *     profile read from a file has (they carry a matrix), so the wrong label
+   *     was ignored and nothing looked broken. Until the document was converted
+   *     INTO such a profile — the dialog offers the file's own first — and then
+   *     could never be converted back: "This document is already sRGB".
+   *
+   * Fixing either alone breaks something visible, so both are pinned here.
+   * tests/fixtures/p3.jpg: patch 3 is (200, 120, 60) in Display P3, tagged with
+   * a matrix/TRC Display P3 profile.
+   */
+  const bytes = await (await fetch('/tests/fixtures/p3.jpg')).arrayBuffer();
+  const doc = await openFile(new File([bytes], 'p3.jpg', { type: 'image/jpeg' }));
+  const patch = () => Array.from(ctx2dRead(doc.findLayer(doc.layers[0].id).canvas).getImageData(40, 24, 1, 1).data);
+  const near = (a, b, tol = 3) => b.every((v, i) => Math.abs(a[i] - v) <= tol);
+  try {
+    const opened = patch();
+    t.eq(profileOf(doc).id, 'srgb', 'an opened photo is sRGB — the browser already converted it');
+    t.eq(doc.sourceProfileName, 'Display P3', 'and the file\'s profile is remembered by name');
+
+    // Into Display P3 must give back the file's own numbers. Had the document
+    // been labelled P3, this would be P3 → P3 and change nothing.
+    const toP3 = await convertToProfile(doc, 'display-p3');
+    t.ok(toP3, 'converting to Display P3 runs');
+    t.ok(near(patch(), [200, 120, 60, 255]), `and recovers the file's own P3 numbers: ${patch()}`);
+
+    // And back. With profileOf ignoring the P3 label this refused, and the
+    // photo stayed in P3 numbers shown as sRGB — visibly dull — for good.
+    const back = await convertToProfile(doc, 'srgb');
+    t.ok(back, 'a document in Display P3 can be converted back to sRGB');
+    t.ok(near(patch(), opened, 2), `and comes back to the colour it opened with: ${patch()} vs ${opened}`);
+  } finally {
+    t.app.closeDocument(doc);
+  }
+
+  // profileOf believes every profile that describes a space.
+  const parsed = parseICC(buildProfile({ desc: 'From A File', gamma: 1.8 }));
+  const tagged = t.doc(4, 4, '#808080', 'tagged');
+  tagged.profile = parsed.profile;
+  t.is(profileOf(tagged), parsed.profile, 'a matrix profile read from a file is the document profile, not sRGB');
+  tagged.profile = getProfile('gray-22');
+  t.eq(profileOf(tagged).id, 'gray-22', 'and so is the built-in grey space, which has no primaries either');
+  tagged.profile = { id: 'embedded', name: 'Broken', space: 'rgb', matrix: null, trc: TRC.srgb };
+  t.eq(profileOf(tagged).id, 'srgb', 'but an RGB profile with no way to reach XYZ still falls back to sRGB');
+
+  // The stuck document, exactly as it happened: converted INTO a profile read
+  // from a file (the Convert dialog offers the document's own first), then back.
+  const fromFile = t.doc(4, 4, '#c87830', 'from file');
+  await convertToProfile(fromFile, parsed.profile);
+  t.ok(await convertToProfile(fromFile, 'srgb'), 'a document converted into a file\'s profile can be converted back');
+
+  const grey = t.doc(4, 4, '#336699', 'grey');
+  await convertToProfile(grey, 'gray-22');
+  t.ok(await convertToProfile(grey, 'srgb'), 'a document converted to grey can be converted back');
+
+  // The dialogs say where the colours came from.
+  const again = await openFile(new File([bytes], 'p3.jpg', { type: 'image/jpeg' }));
+  try {
+    const { showConvertProfileDialog } = await import('/src/ui/dialogs/color-settings.js');
+    const pending = showConvertProfileDialog(again);
+    await new Promise((r) => setTimeout(r, 30));
+    const note = document.querySelector('.pk-source-profile');
+    t.ok(note && /Display P3/.test(note.textContent), 'Convert to Profile names the profile the file came with');
+    const close = document.querySelector('.pk-dialog-close');
+    if (close) close.click();
+    await pending;
+  } finally {
+    t.app.closeDocument(again);
+  }
 });
 
 suite('color / grey profiles adapt their white point too', async (t) => {
