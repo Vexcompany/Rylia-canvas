@@ -1050,7 +1050,7 @@ getProfile(id)  profileOf(doc)  matrixOf(profile)  primariesToMatrix(primaries, 
 TRC.srgb  TRC.rec709  TRC.gamma(g)  TRC.table(samples)
 adaptationMatrix(fromWhite, toWhite)          // Bradford
 makeTransform(from, to, {intent, blackPoint}) // (rgb 0..1) -> rgb 0..1
-transformImageData(image, from, to, opts)     // in place, memoised per 24-bit colour
+transformImageData(image, from, to, opts)     // in place; tables for matrix/TRC, else memoised
 isInGamut(rgb, from, to)  intentIsExact(intent)  INTENTS
 parseICC(buffer) -> {ok: true, profile} | {ok: false, reason, description?}
 extractEmbeddedProfile(bytes) -> Promise<Uint8Array|null>   // JPEG APP2, PNG iCCP
@@ -1067,9 +1067,17 @@ A profile's matrix is derived from its primaries rather than stored, so the two
 cannot disagree; the columns are scaled so RGB (1,1,1) lands exactly on the white
 point, which is what makes white convert to white rather than to a tint.
 
-`transformImageData` memoises on the exact 24-bit colour. A per-channel LUT is not
-an option (a matrix mixes channels) and a full 3×256³ table is absurd, but real
-images have far fewer distinct colours than pixels.
+`transformImageData` has two paths. When `makeTransform` can describe the
+conversion as curve → 3x3 matrix → curve — RGB matrix/TRC at both ends, no black
+point to compensate, which is every built-in pair and every iPhone photo — it
+attaches that description as `transform.matrixForm`, and the image is converted
+from a 256-entry decode table and an encode table indexed by the square root of
+linear light (every encoding curve is steepest near black, so even spacing would
+waste the table where it matters least). That agrees with the exact path to
+within one 8-bit level on under 1 % of channels, and converts a 12 MP photo
+about four times faster. Everything else — LUT sources, grey, black point
+compensation — memoises the exact transform on the 24-bit colour, which suits
+flat artwork and gradients and does not suit camera noise.
 
 ### `src/color/manage.js`
 
