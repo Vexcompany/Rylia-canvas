@@ -1053,7 +1053,7 @@ makeTransform(from, to, {intent, blackPoint}) // (rgb 0..1) -> rgb 0..1
 transformImageData(image, from, to, opts)     // in place; tables for matrix/TRC, else memoised
 isInGamut(rgb, from, to)  intentIsExact(intent)  INTENTS
 parseICC(buffer) -> {ok: true, profile} | {ok: false, reason, description?}
-extractEmbeddedProfile(bytes) -> Promise<Uint8Array|null>   // JPEG APP2, PNG iCCP
+extractEmbeddedProfile(bytes) -> Promise<Uint8Array|null>   // JPEG APP2, PNG iCCP, HEIC colr
 ```
 
 **Matrix/TRC profiles only.** That covers every common working space and almost
@@ -1280,6 +1280,55 @@ than asking for 20 ms.
 `exportDocument(doc, {format: 'gif'})` animates automatically when the document
 has more than one frame; pass `animate: false` for a still.
 
+### HEIC and ICNS — `src/io/{decode,heif-info,heif-read,heif-write,icns}.js`
+
+```
+decodeImage(blob) -> Promise<canvas>          // decode.js: every raster format, by its bytes
+isHEIF(bytes)  heifColour(bytes)              // heif-info.js: container only, no imports
+decodeHEIF(blobOrBytes) -> Promise<canvas>    // heif-read.js: libheif, then to sRGB
+heicEncodeSupport() -> Promise<{ok, reason}>  // heif-write.js
+encodeHEIC(canvas, {quality, transparent}) -> Promise<Blob>
+muxHEIF({hvcC, tiles, alphaTiles?, tileW, tileH, cols, rows, width, height, nclx}) -> Uint8Array
+readICNS(bytes) -> Promise<canvas>   writeICNS(canvas) -> Promise<Blob>   // icns.js
+```
+
+`decode.js` is what File > Open, paste and Replace Contents share. It sniffs the
+bytes, never the name, and tries the browser first for HEIC (Safari decodes it).
+
+**Decoding** is libheif-js, imported **by URL** (`?url`) rather than bundled.
+Bundled, the chunker parked its own shared helpers in the 2 MB chunk and the
+entry chunk imported them, so every page load fetched the decoder; as a plain
+asset it sits outside the module graph, keeps a content hash for caching, and is
+the npm file byte for byte. libheif does grids, rotation, mirroring, crops and
+alpha; it does not do colour management, so `heif-read.js` converts from the
+embedded ICC profile (or nclx primaries) to sRGB with `transformImageData` —
+because that is what the browser does to a JPEG, and the document is then
+labelled by the same `adoptEmbeddedProfile` that labels one. `heif-info.js` is a
+separate, import-free leaf because `icc.js` needs it to find a HEIC's profile and
+`heif-read.js` needs `icc.js`.
+
+**Encoding** uses WebCodecs `VideoEncoder` (`hvc1`), because libheif-js has no
+HEVC encoder in it. The image is cut into 512x512 tiles (edge tiles padded by
+edge extension, not black), converted to I420 **by Pikado** with full-range
+BT.601 and handed over as I420 frames, so the `nclx` written into the file
+describes the conversion that actually happened rather than guessing at a
+browser's. Alpha, when present, is a second grid of luma-only tiles linked by
+`auxl`. Quality maps to a fixed quantizer where the browser supports one, a
+bitrate otherwise.
+
+`muxHEIF` is a pure function from coded tiles to a file — `ftyp`, then `meta`
+(`hdlr`, `pitm`, `iloc`, `iinf`, `iref`, `iprp`) and `mdat`. The `meta` box is
+fixed-width whatever offsets it carries, so it is built once to measure and once
+to emit. The suite tests it with tiles from a real x265 session
+(`tests/fixtures/hevc-tiles.json`, made by `scripts/make-apple-fixtures.py`),
+decoded by real libheif, because headless Chromium on Linux has no HEVC encoder
+and a muxer tested against its own reader proves nothing.
+
+**ICNS** reads the largest decodable entry (PNG; JPEG 2000 where a browser can;
+legacy `is32/il32/ih32/it32` + `*8mk` masks and `ic04/ic05` ARGB through Apple's
+PackBits-variant RLE) and writes PNG entries for every slot up to the document's
+own size, halving step by step on the way down.
+
 ## Persistence, session and offline
 
 Three layers, bottom up: `io/store.js` is the database, `io/session.js` is the
@@ -1452,6 +1501,7 @@ Never write outside your own list — parallel work depends on it.
 - `src/ui/dialogs/*.js`
 - `src/commands/definitions.js`
 - `src/io/{open,save,psd-read,psd-write,svg,pkd,gif}.js`
+- `src/io/{decode,heif-info,heif-read,heif-write,icns}.js` + `scripts/make-apple-fixtures.py`, `tests/fixtures/`
 - `src/io/{store,session,offline}.js` + `public/sw.js`, `public/manifest.webmanifest`
 - `src/edit/{clipboard,fill-stroke}.js`
 - `src/render/{fast-blur,gpu-blend}.js`

@@ -1,5 +1,6 @@
 import { app } from '../../core/app.js';
-import { el, loadImage } from '../../core/util.js';
+import { el } from '../../core/util.js';
+import { decodeImage } from '../../io/decode.js';
 import { paramDialog } from '../dialog.js';
 import {
   isSmartLayer, getSmartTransform, decomposeMatrix, composeMatrix,
@@ -89,7 +90,7 @@ export async function showReplaceContentsDialog(doc, layer) {
   const file = await pickImageFile();
   if (!file) return false;
   return app.busy('Replace Contents', async () => {
-    const img = await loadImage(file);
+    const img = await decodeImage(file);
     replaceContents(doc, layer, img, 'Replace Contents');
     app.toast(`Replaced with "${file.name}".`, 'ok');
     return true;
@@ -101,7 +102,7 @@ function pickImageFile() {
   return new Promise((resolve) => {
     const input = el('input', {
       type: 'file',
-      accept: 'image/*',
+      accept: 'image/*,.heic,.heif,.hif,.icns',
       style: { position: 'fixed', left: '-9999px', width: '1px', height: '1px' },
     });
     let done = false;

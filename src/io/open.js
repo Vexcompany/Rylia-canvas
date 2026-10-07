@@ -2,11 +2,12 @@ import './open.css';
 import { app } from '../core/app.js';
 import { PikaDocument } from '../core/document.js';
 import { createRasterLayer } from '../core/layer.js';
-import { createCanvas, ctx2d, el, loadImage, readFileAsArrayBuffer, readFileAsText } from '../core/util.js';
+import { createCanvas, ctx2d, el, readFileAsArrayBuffer, readFileAsText } from '../core/util.js';
 import { getComposite } from '../render/compositor.js';
 import { readPSD } from './psd-read.js';
 import { importSVG } from './svg.js';
 import { loadPKD } from './pkd.js';
+import { decodeImage } from './decode.js';
 
 /**
  * Ask before opening a PSD that would not fit.
@@ -60,8 +61,12 @@ async function askAboutOversizePSD(info) {
 
 const MAX_GIF_FRAMES = 300;
 
-/** Extensions we can open even when the clipboard reports no MIME type. */
-const KNOWN_EXTENSIONS = new Set(['psd', 'psb', 'pkd', 'svg']);
+/**
+ * Extensions we can open even when the clipboard reports no MIME type — or a
+ * useless one: Chrome and Firefox label a `.heic` from the disk with no type at
+ * all, and a server will often call it `application/octet-stream`.
+ */
+const KNOWN_EXTENSIONS = new Set(['psd', 'psb', 'pkd', 'svg', 'heic', 'heif', 'hif', 'icns']);
 
 function extensionOf(name) {
   const m = /\.([a-z0-9]+)$/i.exec(String(name || ''));
@@ -75,28 +80,6 @@ function stemOf(name) {
 /* ------------------------------------------------------------------ */
 /* Decoding helpers                                                    */
 /* ------------------------------------------------------------------ */
-
-/** Decode any browser-supported image blob to a canvas. */
-async function decodeToCanvas(blob) {
-  if (typeof createImageBitmap === 'function') {
-    try {
-      const bitmap = await createImageBitmap(blob);
-      const canvas = createCanvas(bitmap.width, bitmap.height);
-      ctx2d(canvas).drawImage(bitmap, 0, 0);
-      if (bitmap.close) bitmap.close();
-      return canvas;
-    } catch (err) {
-      // Safari refuses some types here; the <img> path below still works.
-    }
-  }
-  const img = await loadImage(blob);
-  const w = img.naturalWidth || img.width;
-  const h = img.naturalHeight || img.height;
-  if (!w || !h) throw new Error('The image has no pixels');
-  const canvas = createCanvas(w, h);
-  ctx2d(canvas).drawImage(img, 0, 0);
-  return canvas;
-}
 
 /**
  * Decode every frame of an animated GIF using the WebCodecs ImageDecoder.
@@ -219,7 +202,7 @@ export async function openImageBlob(blob, name = 'Image', opts = {}) {
     }
   }
 
-  const canvas = await decodeToCanvas(blob);
+  const canvas = await decodeImage(blob);
   if (target) return placeAsLayer(target, canvas, name);
   const doc = documentFromCanvas(canvas, name);
   await adoptProfileFrom(blob, doc);
@@ -235,7 +218,7 @@ export async function openImageBlob(blob, name = 'Image', opts = {}) {
 }
 
 /**
- * Adopt a JPEG's or PNG's embedded ICC profile, if it has one we can read.
+ * Adopt a JPEG's, PNG's or HEIC's embedded ICC profile, if it has one we can read.
  *
  * Loaded on demand: the ICC machinery is a few hundred lines nothing else in the
  * open path needs. Failure is deliberately quiet — an unsupported profile (a

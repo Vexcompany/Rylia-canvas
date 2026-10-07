@@ -23,9 +23,10 @@ npm run build    # production bundle in dist/
 npm test         # opens the regression suite at /tests/
 ```
 
-Vite is the only dependency. There is no build step to configure, no framework,
-and no TypeScript — the source is plain ES modules that a browser could load
-directly.
+Vite builds it, and there is no build step to configure, no framework, and no
+TypeScript — the source is plain ES modules that a browser could load directly.
+The one runtime dependency is [libheif-js](https://github.com/catdad-experiments/libheif-js),
+the HEIC decoder, and nobody downloads it until they open a HEIC.
 
 Or with Docker, which builds the bundle and serves it from nginx:
 
@@ -35,7 +36,8 @@ docker run --rm -p 8080:80 pikado    # http://localhost:8080
 ```
 
 Nothing runs server-side, so the image carries no Node at all — just nginx and
-about 1.2 MB of static files. The nginx config in `docker/nginx.conf` is not
+about 3.4 MB of static files, 2 MB of which is the HEIC decoder that only loads
+when somebody opens a HEIC. The nginx config in `docker/nginx.conf` is not
 boilerplate: it caches the content-hashed `/assets/` forever and forbids caching
 `index.html` and `sw.js`, because those two name everything else and a stale copy
 of either is how a browser ends up asking for asset hashes the server no longer
@@ -115,6 +117,31 @@ The footer states plainly how many projects are held in this browser and how man
 bytes that is, with the browser's own quota estimate in the tooltip — because an
 app that stores your work locally owes you a way to see it.
 
+### iPhone photos and Mac icons
+
+A HEIC — what every iPhone has shot in since 2017 — opens like any other photo,
+in every browser. Safari decodes it natively; everywhere else Pikado loads
+libheif (compiled to WebAssembly) the first time you open one and keeps it for
+the rest of the session. The colour is handled the way it is for a JPEG: an
+iPhone photo carries a Display P3 profile, and the pixels are converted from it,
+so the same photo opens looking the same whether it arrived as HEIC or as JPEG,
+with the document labelled Display P3. What opens is the photo itself — the
+primary image — and not the HDR gain map, depth map or the other frames of a
+burst that the file may also hold.
+
+Export As writes HEIC too, the way an iPhone does: 512-pixel tiles reassembled
+by a grid, with a second grid for transparency when there is any. The encoding
+uses the HEVC encoder the browser already has, because no WebAssembly one is
+worth shipping. Safari has one, and so do Chrome and Edge on macOS and Windows.
+Firefox and Chromium on Linux do not, and the format shows there, greyed out,
+with that reason next to it.
+
+Mac app icons (`.icns`) open at their largest size, including the run-length
+encoded icons older than OS X Lion. Export As → ICNS writes every size Finder and
+the Dock ask for, up to 1024 px — except sizes larger than the document, which
+are left out rather than upscaled into a blurrier icon than macOS would make
+itself.
+
 ## Your work stays in this browser
 
 Pikado autosaves. Open documents survive a refresh, a crash, and a laptop lid.
@@ -163,6 +190,10 @@ bytes behind that name can never change), everything else same-origin is
 stale-while-revalidate. Cross-origin requests are never intercepted. It is
 registered in production builds only — in front of the dev server it would answer
 module requests from its own cache and make your edits appear to do nothing.
+
+The HEIC decoder is the one piece fetched on demand rather than with the shell:
+it is 2 MB that most visits never need. Once you have opened a HEIC it is cached
+like everything else, but the very first HEIC you open needs a network.
 
 A web manifest makes it installable as a standalone app. Losing the network gets
 a quiet pill in the menu bar and one reassuring line, not a red banner, because
@@ -352,7 +383,8 @@ exactly on each profile's white point, a profile-to-itself transform has to be t
 identity to floating-point precision, and a round trip through a wider gamut has
 to be lossless.
 
-Embedded profiles are read from JPEG (APP2) and PNG (iCCP) when you open a file.
+Embedded profiles are read from JPEG (APP2), PNG (iCCP) and HEIC (`colr`) when you
+open a file.
 Matrix/TRC profiles only — LUT-based profiles are declined with a reason rather
 than misinterpreted, and since Perceptual and Saturation live entirely in those
 tables, those two intents behave as Relative Colorimetric and the dialog tells you
@@ -477,8 +509,8 @@ src/
   layers/      layer operations (merge, group, mask, rasterize…)
   edit/        clipboard, fill & stroke
   commands/    command registry + every menu command
-  io/          open/save, PSD read & write, SVG, GIF, native .pkd format,
-               IndexedDB store, session autosave, offline registration
+  io/          open/save, PSD read & write, SVG, GIF, HEIC, ICNS, native .pkd
+               format, IndexedDB store, session autosave, offline registration
   ui/          menubar, toolbar, options bar, panels, dialogs, canvas view,
                start screen, canvas context menu, brand
 public/        service worker, web manifest, install icons
@@ -545,6 +577,8 @@ traps the suite is built to avoid.
 | GIF | first frame (all frames where `ImageDecoder` exists) | yes — animated, per-frame palettes + LZW |
 | PSD / PSB | yes — layers, groups, masks, blend modes, text, adjustments | yes — layered, see caveats below |
 | SVG | yes — rasterized, with simple shapes kept as editable paths | yes |
+| HEIC / HEIF | yes — natively in Safari, through bundled libheif everywhere else; Display P3 converted, alpha kept | yes, where the browser has an HEVC encoder (Safari; Chrome/Edge on macOS and Windows) |
+| ICNS (macOS icon) | yes — largest entry, PNG or legacy RLE | yes — 16 to 1024 px, never upscaled |
 | `.pkd` (Pikado native) | yes | yes — lossless, preserves everything |
 
 `.pkd` is the format to use when you care about keeping your work intact. PSD
@@ -731,6 +765,8 @@ error:
 |---|---|---|
 | File System Access API | Save straight back to the opened file | Save downloads a copy |
 | `ImageDecoder` | multi-frame GIF import | first frame only |
+| Native HEIC decoding (Safari) | opening HEIC without fetching a decoder | libheif, loaded on first use |
+| WebCodecs HEVC encoder | HEIC export | HEIC export unavailable, and the Export dialog says why |
 | `navigator.clipboard.write` | copying pixels to the OS clipboard | internal clipboard still works |
 | IndexedDB | autosave, session restore, recent projects | autosave off, and the refresh warning comes back |
 | `navigator.storage.persist` | asking not to be evicted under disk pressure | best effort; Safari and private windows say no |
@@ -751,3 +787,9 @@ exist. Both exist because this project has been bitten by their absence.
 [MIT](LICENSE). Photoshop and Photopea are trademarks of their respective
 owners; Pikado is an independent implementation and is not affiliated with
 either.
+
+HEIC decoding uses [libheif](https://github.com/strukturag/libheif) and
+[libde265](https://github.com/strukturag/libde265), through
+[libheif-js](https://github.com/catdad-experiments/libheif-js), all LGPL-3.0.
+It ships as the package's own file, unmodified and loaded separately from the
+rest of Pikado, so it can be replaced with any compatible build.

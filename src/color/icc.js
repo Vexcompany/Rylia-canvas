@@ -1,3 +1,5 @@
+import { isHEIF, heifColour } from '../io/heif-info.js';
+
 /**
  * Colour management: ICC profiles, conversions and soft proofing.
  *
@@ -1047,13 +1049,15 @@ function readTextTag(bytes, dv, tag) {
 /* ------------------------------------------------------------------ */
 
 /**
- * Extract an embedded ICC profile from JPEG or PNG bytes.
+ * Extract an embedded ICC profile from JPEG, PNG or HEIC bytes.
  *
  * JPEG puts it in one or more APP2 segments introduced by `ICC_PROFILE\0`, which
  * have to be concatenated in sequence order. PNG puts it in an `iCCP` chunk,
  * zlib-deflated — and there is no way to inflate it without a decompressor, so
  * that case is reported honestly rather than half-handled. (`DecompressionStream`
- * exists in modern browsers, so it is used where available.)
+ * exists in modern browsers, so it is used where available.) HEIC carries it in
+ * the primary image's `colr` property, which `io/heif-info.js` knows how to
+ * find.
  *
  * @returns {Promise<Uint8Array|null>}
  */
@@ -1061,6 +1065,7 @@ export async function extractEmbeddedProfile(bytes) {
   const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   if (b[0] === 0xff && b[1] === 0xd8) return extractFromJPEG(b);
   if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return extractFromPNG(b);
+  if (isHEIF(b)) return (heifColour(b) || {}).icc || null;
   return null;
 }
 
