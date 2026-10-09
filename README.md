@@ -565,7 +565,7 @@ depends on working Canvas2D or WebGL, and a jsdom canvas would make the whole
 thing meaningless. The runner boots the genuine app off-screen first, so tool
 registration, panels and menus are exercised on the way in, then asserts against
 the live registries. It reports counts at the top of the page and leaves the full
-report on `window.__rylia-canvasTests` for automation.
+report on `window.__ryliaCanvasTests` for automation.
 
 The assertions are about measurements, not smoke: exact pixel values, mean
 absolute difference between before and after, pixel counts, and timings with
