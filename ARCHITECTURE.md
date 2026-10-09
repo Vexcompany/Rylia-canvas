@@ -107,7 +107,7 @@ handed to `Tool.drawOverlay(ctx, view)` is **`app.viewport`, a `Viewport`** —
 `view.toScreen(...)` / `view.scale` are the Viewport's; there is no
 `view.canvas` there.
 
-`window.pikado` is the live singleton (set at the bottom of `app.js`). Use it —
+`window.ryliaCanvas` is the live singleton (set at the bottom of `app.js`). Use it —
 and never a fresh `import` of `app.js` — when driving the app from the console
 or from automation; see [The test suite](#the-test-suite).
 
@@ -1180,7 +1180,7 @@ function with no caller, which a test of the function would never have caught.
 
 **Storage is memory-first.** Nothing is written to disk unless the user ticks
 "remember on this device", which uses IndexedDB under `ai.credential` —
-deliberately not the `pikado.prefs` localStorage blob, which is what people paste
+deliberately not the `rylia-canvas.prefs` localStorage blob, which is what people paste
 into bug reports. `hasCredential()` must stay synchronous: `isEnabled` does
 `return !!c.enabled()`, and a Promise is truthy, so an async version would
 silently enable every AI menu item with no key present.
@@ -1362,7 +1362,7 @@ await prune(keepIds = [])            await requestPersistence()
 STORE_LIMIT_BYTES (1.2 GB)           DOC_LIMIT_BYTES (320 MB)
 ```
 
-Database `pikado` v1, three object stores: `docmeta` (`{id, name, width, height,
+Database `rylia-canvas` v1, three object stores: `docmeta` (`{id, name, width, height,
 layers, updatedAt, bytes, thumb}` keyed by `id`, indexed on `updatedAt`), `docdata`
 (`{id, data}`) and `kv` (`{key, value}`). **Metadata and payload are separate
 stores on purpose** — IndexedDB hands back whole records, so keeping the 50 MB
@@ -1433,7 +1433,7 @@ evicted files), `/assets/…` is cache-first (content-hashed, so a hit is always
 correct), everything else same-origin is stale-while-revalidate. Cross-origin
 requests, non-http(s) schemes and range requests are never intercepted. Bumping
 `VERSION` is the entire cache-busting mechanism: activation deletes every
-`pikado-*` cache that is not the current one.
+`rylia-canvas-*` cache that is not the current one.
 
 `public/manifest.webmanifest` makes it installable: `display: standalone`, relative
 `start_url`/`scope`/icon paths so a subdirectory deployment works, and 192/512
@@ -1559,7 +1559,7 @@ tests/suites/*.test.js  core, compositor, paint, filters, adjustments, layers,
 ```
 
 **Running it:** open `http://localhost:5174/tests/` on the dev server. Automation
-reads `window.__pikadoTests` (the full report) once `window.__pikadoTestsDone` is
+reads `window.__ryliaCanvasTests` (the full report) once `window.__ryliaCanvasTestsDone` is
 true. Node is not an option: essentially every subsystem depends on working
 Canvas2D or WebGL, and a jsdom canvas would make the suite meaningless.
 `tests/index.html` boots the genuine app off-screen at 1280×860 so tool
@@ -1605,7 +1605,7 @@ Assertion context `t`:
 HMR query string, so a bare `import('/src/core/app.js')` instantiates a *second*
 app object with empty registries — tests would silently drive a dead app and pass
 vacuously. `harness.js` reaches the singleton through an already-registered tool
-(`tools` from `/src/tools/base.js`), falling back to `window.pikado`. Use `t.app`;
+(`tools` from `/src/tools/base.js`), falling back to `window.ryliaCanvas`. Use `t.app`;
 never import `app.js` in a test. The same trap applies to any module with
 top-level state — registries, the panel host, `app.patterns` — so read those off
 the live app too.

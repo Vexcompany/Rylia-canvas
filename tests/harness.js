@@ -1,10 +1,10 @@
 /**
- * Pikado test harness.
+ * Rylia Canvas test harness.
  *
  * These tests run in a real browser, not Node, because essentially every
  * subsystem depends on working Canvas2D or WebGL — a jsdom canvas would make the
  * suite meaningless. Open `/tests/` on the dev server, or drive it from
- * automation via `window.__pikadoTests`.
+ * automation via `window.__ryliaCanvasTests`.
  *
  * Writing a suite:
  *
@@ -270,7 +270,7 @@ async function liveApp() {
   const { tools } = await import('/src/tools/base.js');
   const viaTool = tools.size ? [...tools.values()][0].app : null;
   if (viaTool) return viaTool;
-  if (typeof window !== 'undefined' && window.pikado) return window.pikado;
+  if (typeof window !== 'undefined' && window.ryliaCanvas) return window.ryliaCanvas;
   const mod = await import('/src/core/app.js');
   return mod.app;
 }

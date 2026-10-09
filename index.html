@@ -64,7 +64,7 @@
        */
       window.addEventListener('load', function () {
         setTimeout(function () {
-          if (window.pikado || sessionStorage.getItem('rylia-healed')) return;
+          if (window.ryliaCanvas || sessionStorage.getItem('rylia-healed')) return;
           if (!('serviceWorker' in navigator)) return;
           if (navigator.onLine === false) return;
           sessionStorage.setItem('rylia-healed', '1');

@@ -21,7 +21,7 @@
  * that answer must not cost a read of several megabytes of woff2.
  */
 
-const DB_NAME = 'pikado';
+const DB_NAME = 'rylia-canvas';
 const DB_VERSION = 2;
 
 /** Stop growing the store past this; the least recently touched go first. */

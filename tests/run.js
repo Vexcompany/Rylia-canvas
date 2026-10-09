@@ -100,10 +100,10 @@ function renderSummary(report, done) {
   });
 
   renderSummary(report, true);
-  window.__pikadoTests = report;
-  window.__pikadoTestsDone = true;
+  window.__ryliaCanvasTests = report;
+  window.__ryliaCanvasTestsDone = true;
 
   const line = `${report.passed} passed, ${report.failed} failed, ${report.errors} suites threw — ${report.ms} ms`;
-  if (report.ok) console.log(`[pikado tests] ALL PASS — ${line}`);
-  else console.error(`[pikado tests] FAILURES — ${line}`);
+  if (report.ok) console.log(`[Rylia Canvas tests] ALL PASS — ${line}`);
+  else console.error(`[Rylia Canvas tests] FAILURES — ${line}`);
 })();

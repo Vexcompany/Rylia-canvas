@@ -246,4 +246,4 @@ class App extends Emitter {
 export const app = new App();
 
 // Handy for debugging from the console.
-if (typeof window !== 'undefined') window.pikado = app;
+if (typeof window !== 'undefined') window.ryliaCanvas = app;
