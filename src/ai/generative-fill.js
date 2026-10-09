@@ -8,12 +8,12 @@ import { hasConsent, hostOf } from './consent.js';
 import { GenerationError, GEN_ERRORS, mapThrown } from './errors.js';
 
 /**
- * Generative Fill: the Pikado half.
+ * Generative Fill: the Rylia Canvas half.
  *
  * This is the only file under `src/ai/` that knows what a document or a layer is.
  * Everything network- or vendor-shaped lives in `providers/`, and everything
  * pixel-shaped lives in `geometry.js`, so what remains here is the part that has
- * to be right about Pikado's own rules: copy-on-write, document-sized buffers,
+ * to be right about Rylia Canvas's own rules: copy-on-write, document-sized buffers,
  * and exactly one undo step.
  */
 

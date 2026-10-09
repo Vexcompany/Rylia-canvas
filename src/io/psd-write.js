@@ -33,10 +33,10 @@ import { subpathsBounds } from '../vector/path.js';
  *   1. the legacy binary key for the six adjustments Photoshop documents in a
  *      simple non-descriptor form (`nvrt`, `post`, `thrs`, `brit`, `levl`,
  *      `curv`), so real Photoshop and Photopea show a live adjustment, and
- *   2. a Pikado-private `8BIM`/`pkAd` block holding `{kind, params}` as JSON —
+ *   2. a Rylia Canvas-private `8BIM`/`pkAd` block holding `{kind, params}` as JSON —
  *      written for *every* adjustment layer, including the six above.
  *
- * The private block is what makes a Pikado -> PSD -> Pikado round trip lossless
+ * The private block is what makes a Rylia Canvas -> PSD -> Rylia Canvas round trip lossless
  * for all 24 adjustment kinds; `psd-read.js` prefers it whenever it is present.
  * Unknown additional-layer-info keys are skipped by every conforming reader, so
  * carrying it costs nothing in interoperability.
@@ -511,7 +511,7 @@ function rectOf(layer, doc) {
  * listing it in the Channels panel. Anything else opening the file sees a
  * perfectly ordinary saved selection.
  */
-export const SELECTION_CHANNEL_NAME = 'Pikado Selection';
+export const SELECTION_CHANNEL_NAME = 'Rylia Canvas Selection';
 
 /**
  * Serialise a document to a Photoshop file.
@@ -915,7 +915,7 @@ function writeLayerRecord(w, record, doc) {
   if (!isDivider) writeLayerEffects(w, layer);
 
   // Adjustment payload: the legacy binary key when one exists, then always the
-  // private Pikado block so the round trip is lossless.
+  // private Rylia Canvas block so the round trip is lossless.
   if (isAdjustment && layer.adjustment) {
     writeLegacyAdjustment(w, layer.adjustment);
     writePrivateAdjustment(w, layer.adjustment);
@@ -1193,9 +1193,9 @@ function writeCurvesBody(w, curves) {
 }
 
 /**
- * The Pikado-private adjustment block.
+ * The Rylia Canvas-private adjustment block.
  *
- * Signature `8BIM`, key `pkAd` — "Pikado Adjustment". `pkAd` is not, and has
+ * Signature `8BIM`, key `pkAd` — "Rylia Canvas Adjustment". `pkAd` is not, and has
  * never been, a Photoshop additional-layer-info key, and the mixed-case shape
  * keeps it clear of Adobe's own naming; conforming readers skip keys they do
  * not know, so Photoshop, Photopea and psd-tools all ignore it safely.
@@ -1245,7 +1245,7 @@ function sortedKeys(value) {
 }
 
 /**
- * The shared body of every Pikado-private block: a four-character magic, a
+ * The shared body of every Rylia Canvas-private block: a four-character magic, a
  * uint16 format version, a uint32 byte count and that many bytes of UTF-8 JSON.
  * `pkAd` carries `{kind, params}`, `pkTx` carries `layer.text` and `pkSh`
  * carries `layer.shape`. All three are keys Adobe has never used, and every
@@ -1288,7 +1288,7 @@ function writePrivatePayload(w, key, magic, value, label) {
 /* Layer effects — the 'lfx2' block                                    */
 /* ------------------------------------------------------------------ */
 
-/** Pikado blend id -> the enum value Photoshop uses inside effects. */
+/** Rylia Canvas blend id -> the enum value Photoshop uses inside effects. */
 const EFFECT_BLEND_ENUMS = {
   normal: 'Nrml', dissolve: 'Dslv', darken: 'Drkn', multiply: 'Mltp',
   'color-burn': 'CBrn', 'linear-burn': 'linearBurn', 'darker-color': 'darkerColor',
@@ -1375,7 +1375,7 @@ function pixelPointDescriptor(x, y) {
  * Photoshop's `Angl` is measured **anticlockwise from the positive x axis** —
  * 0° puts the first stop at the left, 90° puts it at the bottom.
  *
- * Pikado has two gradient renderers and they do *not* agree:
+ * Rylia Canvas has two gradient renderers and they do *not* agree:
  *
  *   - `src/paint/gradients.js` (`axisFrom`) and the layer-effect renderer in
  *     `src/effects/effect-renderers.js` (`gradientAxis`) both build their axis
@@ -1386,7 +1386,7 @@ function pixelPointDescriptor(x, y) {
  *     90° puts the first stop at the *top*, the mirror image of Photoshop's.
  *
  * So a `GdFl` angle, and only a `GdFl` angle, has to change sign in both
- * directions. Negating is an involution, so the Pikado round trip is exact; the
+ * directions. Negating is an involution, so the Rylia Canvas round trip is exact; the
  * point of doing it is that Photoshop then orients the gradient the same way we
  * render it. If this ever looks wrong again, check which of the two renderers
  * the layer in question actually uses before flipping the sign back.
@@ -1619,7 +1619,7 @@ const ANTIALIAS_ENUMS = {
   strong: 'antiAliasStrong', smooth: 'antiAliasSmooth',
 };
 
-/** Pikado warp style -> the `warpStyle` enum value. */
+/** Rylia Canvas warp style -> the `warpStyle` enum value. */
 const WARP_STYLE_ENUMS = {
   none: 'warpNone', arc: 'warpArc', arch: 'warpArch', bulge: 'warpBulge',
   flag: 'warpFlag', wave: 'warpWave', fish: 'warpFish', rise: 'warpRise',
@@ -2248,14 +2248,14 @@ function writeVectorStrokeContent(w, key, descriptor) {
  *
  * Evidence, stated plainly because this is exactly the kind of thing that gets
  * quietly forgotten: `keyOriginLine*` (type 4) are the names psd-tools reads, so
- * a Pikado line should open as a live line. The `keyOriginPoly*` names are **not**
+ * a Rylia Canvas line should open as a live line. The `keyOriginPoly*` names are **not**
  * documented anywhere public and no Photoshop install was available to check
  * them against. They are written anyway because the geometry never depends on
  * them — Photoshop draws the shape from the `vmsk` path either way — so the
  * worst case is the block being ignored and the frozen path appearing, which is
  * what happens today. What they do guarantee is that `psd-read.js` restores
  * `sides` / `star` / `innerRadius` from the interoperable blocks alone, with no
- * Pikado-private block involved.
+ * Rylia Canvas-private block involved.
  */
 const ORIGIN_TYPES = { rect: 1, 'rounded-rect': 2, line: 4, ellipse: 5, polygon: 6 };
 

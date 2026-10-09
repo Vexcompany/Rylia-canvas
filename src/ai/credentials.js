@@ -40,7 +40,7 @@ import { kvSet, kvGet, kvDelete } from '../io/store.js';
  * filtering code anywhere.
  *
  * Persisted form lives in IndexedDB under `ai.credentials`, deliberately not in
- * the `pikado.prefs` localStorage blob: that blob is what people paste into bug
+ * the `rylia-canvas.prefs` localStorage blob: that blob is what people paste into bug
  * reports, and what any future settings-export would carry off wholesale.
  */
 

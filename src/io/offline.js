@@ -6,7 +6,7 @@ import './offline.css';
  * Offline support: registration of the app-shell worker, plus the one piece of
  * chrome that reports on it.
  *
- * Pikado never needed a server to do its work — every pixel is processed in the
+ * Rylia Canvas never needed a server to do its work — every pixel is processed in the
  * tab and every project is stored in IndexedDB — so "offline" only ever meant
  * "the shell could not be downloaded". The worker in public/sw.js fixes that;
  * this module is the client half.
@@ -80,8 +80,12 @@ function registerWorker() {
   // server and a preview build share an origin often enough that a stale worker
   // would otherwise haunt development.
   if (!import.meta.env.PROD) {
+    const appRoot = new URL('./', document.baseURI);
     navigator.serviceWorker.getRegistrations()
-      .then((regs) => regs.forEach((reg) => reg.unregister()))
+      .then((regs) => regs.filter((reg) => {
+        const scope = new URL(reg.scope);
+        return scope.origin === appRoot.origin && scope.pathname === appRoot.pathname;
+      }).forEach((reg) => reg.unregister()))
       .catch(() => { /* nothing registered, or workers blocked — either is fine */ });
     return;
   }
@@ -103,7 +107,7 @@ function registerWorker() {
     // stroke or a half-filled dialog, and losing that to a background upgrade
     // would be a far worse bug than running a version-old build for a minute.
     if (updateBtn) updateBtn.hidden = false;
-    app.toast('A new version of Pikado is ready — refresh when you are done to load it.', 'info', 7000);
+    app.toast('A new version of Rylia Canvas is ready — refresh when you are done to load it.', 'info', 7000);
   };
 
   navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -137,7 +141,7 @@ function buildIndicator() {
 
   indicator = el('div.pk-net', {
     hidden: true,
-    title: 'No network connection. Pikado runs locally and keeps your projects in this browser.',
+    title: 'No network connection. Rylia Canvas runs locally and keeps your projects in this browser.',
   },
   el('span.pk-net-dot'),
   el('span.pk-net-label.pk-micro', { text: 'Offline' }));
@@ -145,7 +149,7 @@ function buildIndicator() {
   updateBtn = el('button.pk-net.pk-net-update', {
     hidden: true,
     type: 'button',
-    title: 'Reload to run the newest version of Pikado.',
+    title: 'Reload to run the newest version of Rylia Canvas.',
     onclick: () => location.reload(),
   },
   el('span.pk-net-dot'),

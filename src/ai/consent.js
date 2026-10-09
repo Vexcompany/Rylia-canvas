@@ -16,7 +16,7 @@ import { getPref, setPrefs } from '../ui/dialogs/preferences.js';
  * has to be asked again.
  *
  * Granted-for-this-session lives in memory; "don't ask again" lives in
- * `pikado.prefs`. A boolean list of hostnames is not a secret, so the ordinary
+ * `rylia-canvas.prefs`. A boolean list of hostnames is not a secret, so the ordinary
  * preferences store is the right home for it — unlike the key, which must never
  * go near that blob.
  */

@@ -11,10 +11,11 @@ import './panels/panels.css';
  * docked panel groups. The divider between two groups resizes them.
  *
  * Open/collapsed state, the active tab of each group and the group heights are
- * persisted in `localStorage` under `pikado.panels`.
+ * persisted in `localStorage` under `rylia-canvas.panels`.
  */
 
-const STORAGE_KEY = 'pikado.panels';
+const STORAGE_KEY = 'rylia-canvas.panels';
+const LEGACY_STORAGE_KEY = 'pikado.panels';
 
 /** Vertical order of the known groups; unknown groups are appended. */
 const GROUP_ORDER = ['top', 'mid', 'bottom'];
@@ -47,12 +48,20 @@ const prefs = loadPrefs();
 function loadPrefs() {
   const base = { panels: {}, groups: {} };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    let raw = localStorage.getItem(STORAGE_KEY);
+    const fromLegacy = !raw;
+    if (!raw) raw = localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return base;
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === 'object') {
       base.panels = parsed.panels && typeof parsed.panels === 'object' ? parsed.panels : {};
       base.groups = parsed.groups && typeof parsed.groups === 'object' ? parsed.groups : {};
+      if (fromLegacy) {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+          localStorage.removeItem(LEGACY_STORAGE_KEY);
+        } catch { /* keep the legacy value if migration is blocked */ }
+      }
     }
   } catch {
     /* corrupt or unavailable storage — fall back to defaults */

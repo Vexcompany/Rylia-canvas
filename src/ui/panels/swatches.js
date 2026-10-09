@@ -11,12 +11,24 @@ import './swatches.css';
  * localStorage); below it sit read-only library groups.
  */
 
-const STORE_KEY = 'pikado.swatches';
+const STORE_KEY = 'rylia-canvas.swatches';
+const LEGACY_STORE_KEY = 'pikado.swatches';
 
 function loadUserSwatches() {
   try {
-    const raw = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
-    if (Array.isArray(raw) && raw.length) return raw.filter((s) => typeof s === 'string' || (s && typeof s.color === 'string'));
+    let raw = localStorage.getItem(STORE_KEY);
+    const fromLegacy = !raw;
+    if (!raw) raw = localStorage.getItem(LEGACY_STORE_KEY);
+    const parsed = JSON.parse(raw || 'null');
+    if (Array.isArray(parsed) && parsed.length) {
+      if (fromLegacy) {
+        try {
+          localStorage.setItem(STORE_KEY, JSON.stringify(parsed));
+          localStorage.removeItem(LEGACY_STORE_KEY);
+        } catch { /* keep the legacy value if migration is blocked */ }
+      }
+      return parsed.filter((s) => typeof s === 'string' || (s && typeof s.color === 'string'));
+    }
   } catch {
     /* corrupt or unavailable storage — fall through to the defaults */
   }

@@ -153,8 +153,8 @@ export async function showAiKeyDialog(providerId = 'openai') {
     el('div.pk-field', {},
       el('div.pk-hint', {
         text: host
-          ? `Pikado sends this key to ${host} and nowhere else. There is no Pikado server, so nobody but you and ${provider.name} ever sees it.`
-          : `This key is used only to talk to ${provider.name}. There is no Pikado server.`,
+          ? `Rylia Canvas sends this key to ${host} and nowhere else. There is no Rylia Canvas server, so nobody but you and ${provider.name} ever sees it.`
+          : `This key is used only to talk to ${provider.name}. There is no Rylia Canvas server.`,
       }),
       input),
     rememberRow,

@@ -9,13 +9,14 @@ import {
 /**
  * Edit > Keyboard Shortcuts.
  *
- * Overrides live in `localStorage["pikado.shortcuts"]` as `{commandId: accel}`.
+ * Overrides live in `localStorage["rylia-canvas.shortcuts"]` as `{commandId: accel}`.
  * `applyStoredShortcuts()` writes them onto the registered commands *before*
  * `installShortcuts()` builds its binding map, and the capture-phase listener
  * below makes changes made during the session take effect immediately.
  */
 
-const STORAGE_KEY = 'pikado.shortcuts';
+const STORAGE_KEY = 'rylia-canvas.shortcuts';
+const LEGACY_STORAGE_KEY = 'pikado.shortcuts';
 
 const GROUPS = [
   ['file.', 'File'],
@@ -35,9 +36,18 @@ const GROUPS = [
 
 function load() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    let raw = localStorage.getItem(STORAGE_KEY);
+    const fromLegacy = !raw;
+    if (!raw) raw = localStorage.getItem(LEGACY_STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : null;
-    return parsed && typeof parsed === 'object' ? parsed : {};
+    if (!parsed || typeof parsed !== 'object') return {};
+    if (fromLegacy) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+        localStorage.removeItem(LEGACY_STORAGE_KEY);
+      } catch { /* keep the legacy value if migration is blocked */ }
+    }
+    return parsed;
   } catch {
     return {};
   }

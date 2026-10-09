@@ -34,6 +34,6 @@ pnpm-debug.log*
 .env.local
 .env.*.local
 
-# Scratch files — Pikado documents used while testing by hand
+# Scratch files — Rylia Canvas documents used while testing by hand
 scratch/
 *.pkd.bak

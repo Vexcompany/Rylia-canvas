@@ -12,13 +12,24 @@ import './color-picker.css';
  * sync. `onChange` fires on every interaction so callers can live-preview.
  */
 
-const RECENT_KEY = 'pikado.recentColors';
+const RECENT_KEY = 'rylia-canvas.recentColors';
+const LEGACY_RECENT_KEY = 'pikado.recentColors';
 const MAX_RECENT = 14;
 
 function loadRecent() {
   try {
-    const raw = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
-    return Array.isArray(raw) ? raw.filter((c) => typeof c === 'string').slice(0, MAX_RECENT) : [];
+    let raw = localStorage.getItem(RECENT_KEY);
+    const fromLegacy = !raw;
+    if (!raw) raw = localStorage.getItem(LEGACY_RECENT_KEY);
+    const parsed = JSON.parse(raw || '[]');
+    if (!Array.isArray(parsed)) return [];
+    if (fromLegacy && parsed.length) {
+      try {
+        localStorage.setItem(RECENT_KEY, JSON.stringify(parsed));
+        localStorage.removeItem(LEGACY_RECENT_KEY);
+      } catch { /* keep the legacy value if migration is blocked */ }
+    }
+    return parsed.filter((c) => typeof c === 'string').slice(0, MAX_RECENT);
   } catch {
     return [];
   }

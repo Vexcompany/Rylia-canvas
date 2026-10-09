@@ -149,7 +149,7 @@ export class Dialog {
 /* Simple helpers                                                      */
 /* ------------------------------------------------------------------ */
 
-export function alertDialog(message, title = 'Pikado') {
+export function alertDialog(message, title = 'Rylia Canvas') {
   const d = new Dialog({ title, width: 340 });
   d.setBody(el('p.pk-msg', { text: message }));
   d.setButtons([{ label: 'OK', value: true, primary: true }]);
@@ -168,7 +168,7 @@ export function alertDialog(message, title = 'Pikado') {
  * @param {{danger?:boolean}} [opts]
  * @returns {Promise<boolean>}
  */
-export function confirmDialog(message, title = 'Pikado', okLabel = 'OK', opts = {}) {
+export function confirmDialog(message, title = 'Rylia Canvas', okLabel = 'OK', opts = {}) {
   const d = new Dialog({ title, width: 360 });
   d.setBody(el('p.pk-msg', { text: message }));
   d.setButtons([
@@ -178,7 +178,7 @@ export function confirmDialog(message, title = 'Pikado', okLabel = 'OK', opts = 
   return d.open();
 }
 
-export function promptDialog(message, initial = '', title = 'Pikado') {
+export function promptDialog(message, initial = '', title = 'Rylia Canvas') {
   const d = new Dialog({ title, width: 360 });
   const input = el('input.pk-input', { type: 'text', value: initial });
   d.setBody(el('div.pk-field', {}, el('label', { text: message }), input));

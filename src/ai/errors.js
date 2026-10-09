@@ -126,13 +126,13 @@ export function messageFor(err) {
     case GEN_ERRORS.REFUSED:
       return { text: `${p} declined this prompt. Describing the result rather than the subject often helps.`, action: null };
     case GEN_ERRORS.OFFLINE:
-      return { text: 'No connection. Generative Fill is the one thing in Pikado that needs one — everything else still works.', action: null };
+      return { text: 'No connection. Generative Fill is the one thing in Rylia Canvas that needs one — everything else still works.', action: null };
     case GEN_ERRORS.ABORTED:
       return { text: `Stopped. ${p} may still charge for a generation that had already started.`, action: null };
     case GEN_ERRORS.TIMEOUT:
       return { text: `No answer from ${p} after two minutes. It may be overloaded — try again.`, action: null };
     case GEN_ERRORS.BAD_RESPONSE:
-      return { text: `${p} returned something Pikado could not read. Nothing was changed.`, action: null };
+      return { text: `${p} returned something Rylia Canvas could not read. Nothing was changed.`, action: null };
     case GEN_ERRORS.SERVER:
       return { text: `${p} is having trouble${err.status ? ` (${err.status})` : ''}. Nothing was charged for a failed request.`, action: null };
     default:

@@ -5,7 +5,7 @@ import { createCanvas, ctx2d, loadImage } from '../core/util.js';
 import { fontTableFor } from '../text/font-table.js';
 
 /**
- * `.pkd` — the lossless Pikado project format.
+ * `.pkd` — the lossless Rylia Canvas project format.
  *
  * Layout:
  *   0   8 bytes   ASCII magic "PIKADO01"
@@ -144,7 +144,7 @@ function createDecoder(decoded) {
 /**
  * A colour profile, reduced to JSON.
  *
- * A built-in space travels as its id, so a later Pikado with a corrected matrix
+ * A built-in space travels as its id, so a later Rylia Canvas with a corrected matrix
  * writes the corrected one rather than a stale copy. An *embedded* profile has to
  * travel in full — the original ICC bytes are not kept once parsed, so there is
  * nothing to re-parse. Its tone curve is stored as the sample table when it has
@@ -330,7 +330,7 @@ export async function loadPKD(arrayBuffer) {
   if (u8.length < 12) throw new Error('The project file is empty');
   let magic = '';
   for (let i = 0; i < 8; i++) magic += String.fromCharCode(u8[i]);
-  if (magic !== MAGIC) throw new Error('Not a Pikado project file');
+  if (magic !== MAGIC) throw new Error('Not a Rylia Canvas project file');
 
   const manifestLength = new DataView(arrayBuffer).getUint32(8, true);
   if (12 + manifestLength > u8.length) throw new Error('The project file is truncated');

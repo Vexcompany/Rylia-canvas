@@ -346,11 +346,11 @@ export async function readPSD(arrayBuffer, opts = {}) {
   const colorMode = r.readUint16();
 
   if (depth !== 8 && depth !== 16) {
-    throw new Error(`Unsupported bit depth: ${depth} bits per channel. Pikado can open 8- and 16-bit files.`);
+    throw new Error(`Unsupported bit depth: ${depth} bits per channel. Rylia Canvas can open 8- and 16-bit files.`);
   }
   if (colorMode !== 3 && colorMode !== 1) {
     const nm = COLOR_MODE_NAMES[colorMode] || `mode ${colorMode}`;
-    throw new Error(`Unsupported colour mode: ${nm}. Pikado can open RGB and Grayscale files.`);
+    throw new Error(`Unsupported colour mode: ${nm}. Rylia Canvas can open RGB and Grayscale files.`);
   }
   if (width < 1 || height < 1) throw new Error('The PSD reports an empty canvas');
   if (width * height > 120e6) throw new Error(`The image is too large to open (${width}×${height})`);
@@ -376,7 +376,7 @@ export async function readPSD(arrayBuffer, opts = {}) {
    * will spend it and see banding they cannot explain.
    */
   if (depth === 16) {
-    ctx.warnings.push('This is a 16-bit file. Pikado works in 8 bits per channel, so it was converted down — tonal edits have less headroom than the original.');
+    ctx.warnings.push('This is a 16-bit file. Rylia Canvas works in 8 bits per channel, so it was converted down — tonal edits have less headroom than the original.');
   }
 
   // --- Colour mode data (palette for indexed/duotone; unused for RGB/Gray).

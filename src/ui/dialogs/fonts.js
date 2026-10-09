@@ -33,7 +33,8 @@ import { isOffline } from '../../io/offline.js';
 
 const ROW_H = 34;
 const OVERSCAN = 6;
-const PREVIEW_KEY = 'pikado.fonts.preview';
+const PREVIEW_KEY = 'rylia-canvas.fonts.preview';
+const LEGACY_PREVIEW_KEY = 'pikado.fonts.preview';
 
 /** Built-ins presented in the same shape as a catalogue entry. */
 function builtinRows() {
@@ -66,7 +67,18 @@ export async function showFontsDialog(opts = {}) {
   let active = -1;
 
   let sample = '';
-  try { sample = localStorage.getItem(PREVIEW_KEY) || ''; } catch { /* private mode */ }
+  try {
+    sample = localStorage.getItem(PREVIEW_KEY) || '';
+    if (!sample) {
+      sample = localStorage.getItem(LEGACY_PREVIEW_KEY) || '';
+      if (sample) {
+        try {
+          localStorage.setItem(PREVIEW_KEY, sample);
+          localStorage.removeItem(LEGACY_PREVIEW_KEY);
+        } catch { /* keep the legacy value if migration is blocked */ }
+      }
+    }
+  } catch { /* private mode */ }
   setPreviewText(sample);
 
   /* --- controls ---------------------------------------------------- */

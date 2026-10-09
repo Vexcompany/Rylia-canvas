@@ -116,7 +116,7 @@ export async function readICNS(bytes) {
     }
   }
   throw new Error(entries.length
-    ? 'this icon has no image Pikado can decode'
+    ? 'this icon has no image Rylia Canvas can decode'
     : 'this ICNS file has no icon entries');
 }
 

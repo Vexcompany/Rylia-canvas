@@ -50,7 +50,7 @@ const QUALITY = [
  * that retires in October 2026 — long after it stopped being the right default.
  *
  * `gpt-image-1-mini` rejects `input_fidelity` and `gpt-image-2` does not allow
- * it to be changed; Pikado never sends it, so the difference does not surface
+ * it to be changed; Rylia Canvas never sends it, so the difference does not surface
  * here. `response_format` is likewise never sent: it is a dall-e-2 parameter,
  * GPT image models always answer with base64, and sending it is the classic
  * migration 400.

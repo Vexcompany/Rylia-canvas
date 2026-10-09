@@ -110,9 +110,9 @@ export function cropToRequest(source, frame) {
 }
 
 /**
- * Build the provider's mask image from a Pikado coverage mask.
+ * Build the provider's mask image from a Rylia Canvas coverage mask.
  *
- * Pikado stores 255 = selected. Providers disagree about what a mask means:
+ * Rylia Canvas stores 255 = selected. Providers disagree about what a mask means:
  * OpenAI's edit endpoint replaces wherever the mask is *transparent*, most
  * Stable-Diffusion endpoints replace wherever it is *white*, a few use black.
  * The provider descriptor names its convention and this is the only place in the
@@ -124,7 +124,7 @@ export function cropToRequest(source, frame) {
  *    and a feathered edge sent as mid-grey is interpreted inconsistently between
  *    them. The request gets a boundary that cannot be misread; the *result* is
  *    then blended into the document through the original soft coverage, where
- *    Pikado controls the filter. So a feathered selection still feathers.
+ *    Rylia Canvas controls the filter. So a feathered selection still feathers.
  *  - **Dilated a few pixels.** Providers reproduce the mask boundary only
  *    approximately. If the request mask and the layer mask were identical, a
  *    one-pixel misalignment would show as a halo of original pixels along the

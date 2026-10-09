@@ -6,10 +6,10 @@ import { grantConsent, hasConsent, hostOf } from '../../ai/consent.js';
 /**
  * "This is about to leave your computer."
  *
- * Pikado has never sent a user's work anywhere, and the whole README says so.
+ * Rylia Canvas has never sent a user's work anywhere, and the whole README says so.
  * This dialog is the moment that stops being true, so it is written to be read
  * rather than dismissed: it names the host, lists what goes and what does not,
- * and does not pretend Pikado has any say over what happens at the other end.
+ * and does not pretend Rylia Canvas has any say over what happens at the other end.
  *
  * Asked separately from key entry on purpose. Pasting a key to see whether the
  * feature works at all is not the same as agreeing to upload a picture, and a
@@ -26,7 +26,7 @@ export async function showAiConsentDialog(provider) {
   const dontAsk = el('input', { type: 'checkbox' });
 
   dialog.setBody(
-    el('div.pk-hint', { text: 'Pikado has never sent your work anywhere. This feature does.' }),
+    el('div.pk-hint', { text: 'Rylia Canvas has never sent your work anywhere. This feature does.' }),
     el('div.pk-field', {},
       el('label', { text: `Leaving this computer, to ${host}` }),
       el('ul.pk-list', {},
@@ -40,7 +40,7 @@ export async function showAiConsentDialog(provider) {
         el('li', { text: 'your edit history, and anything else stored in this browser' }))),
     el('div.pk-hint', {
       text: `What ${provider.name} stores, and for how long, is governed by their terms and not `
-        + 'by Pikado. Read them before sending anything you would not post publicly.',
+        + 'by Rylia Canvas. Read them before sending anything you would not post publicly.',
     }),
     el('label.pk-check', {}, dontAsk, el('span', { text: `Don't ask again for ${host}` })),
   );

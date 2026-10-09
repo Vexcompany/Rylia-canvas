@@ -107,7 +107,7 @@ export async function saveDocumentAs(doc) {
     try {
       handle = await window.showSaveFilePicker({
         suggestedName: suggested,
-        types: [{ description: 'Pikado project', accept: { 'application/x-pikado': ['.pkd'] } }],
+        types: [{ description: 'Rylia Canvas project', accept: { 'application/x-pikado': ['.pkd'] } }],
       });
     } catch (err) {
       if (err && err.name === 'AbortError') return false;

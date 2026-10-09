@@ -159,7 +159,7 @@ export async function showExportDialog(doc = app.activeDoc) {
   const heicOption = formatSelect.querySelector('option[value="heic"]');
   const heicNote = el('div.pkd-note', { style: { display: 'none' } });
   // Disabled, not hidden: someone looking for HEIC should find out why it is
-  // greyed out rather than conclude Pikado cannot write it anywhere.
+  // greyed out rather than conclude Rylia Canvas cannot write it anywhere.
   heicEncodeSupport().then(({ ok, reason }) => {
     heicOption.disabled = !ok;
     if (!ok) {

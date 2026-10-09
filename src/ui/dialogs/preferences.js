@@ -6,12 +6,13 @@ import { Dialog, buildForm } from '../dialog.js';
 import { BRAND } from '../brand.js';
 
 /**
- * Preferences. Values persist in `localStorage["pikado.prefs"]` and are pushed
+ * Preferences. Values persist in `localStorage["rylia-canvas.prefs"]` and are pushed
  * onto the `app` singleton (and the root CSS variables) by
  * `applyStoredPreferences()`, which runs once when this module is imported.
  */
 
-const STORAGE_KEY = 'pikado.prefs';
+const STORAGE_KEY = 'rylia-canvas.prefs';
+const LEGACY_STORAGE_KEY = 'pikado.prefs';
 
 export const PREF_DEFAULTS = {
   /* General */
@@ -169,10 +170,19 @@ const CATEGORIES = [
 
 function load() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    let raw = localStorage.getItem(STORAGE_KEY);
+    const fromLegacy = !raw;
+    if (!raw) raw = localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : {};
+    if (!parsed || typeof parsed !== 'object') return {};
+    if (fromLegacy) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+        localStorage.removeItem(LEGACY_STORAGE_KEY);
+      } catch { /* keep the legacy value if migration is blocked */ }
+    }
+    return parsed;
   } catch {
     return {};
   }

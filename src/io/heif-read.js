@@ -10,7 +10,7 @@ import libheifUrl from 'libheif-js/libheif-wasm/libheif-bundle.mjs?url';
  * Only Safari can decode one natively, so `src/io/decode.js` tries the browser
  * first and comes here when it fails. The pixels are decoded by **libheif**
  * (libheif-js: libheif + libde265 compiled to WebAssembly), loaded on demand: it
- * is about 2 MB, nothing else in Pikado needs it, and a user who never opens a
+ * is about 2 MB, nothing else in Rylia Canvas needs it, and a user who never opens a
  * HEIC never downloads it. Grids (an iPhone photo is 48 tiles of 512x512),
  * rotation, mirroring, clean-aperture crops and alpha planes are all libheif's
  * job, and it does them before handing back pixels.

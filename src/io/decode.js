@@ -35,7 +35,7 @@ export async function decodeToCanvas(blob) {
 }
 
 /**
- * Decode any image Pikado can open as pixels, to a canvas.
+ * Decode any image Rylia Canvas can open as pixels, to a canvas.
  *
  * Dispatches on the bytes rather than the name, because a name is only a
  * claim: a HEIC renamed `.jpg` is still a HEIC, and a JPEG converted from one

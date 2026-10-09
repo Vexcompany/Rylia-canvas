@@ -10,7 +10,7 @@ import { defaultModelOf, defaultEffortOf, effortChoices } from './providers/inde
  * preference — the chosen values arrive as ordinary fields on the generation
  * request, which is what lets a provider be tested with no app around it.
  *
- * These belong in the `pikado.prefs` blob, unlike the API key, which is
+ * These belong in the `rylia-canvas.prefs` blob, unlike the API key, which is
  * deliberately kept out of it (see `credentials.js`). A model id is a
  * preference, not a secret: it is fine in a bug report, fine in a settings
  * export, and it should survive a refresh — which is exactly the set of

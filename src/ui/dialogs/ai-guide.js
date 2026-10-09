@@ -6,7 +6,7 @@ import { Dialog } from '../dialog.js';
 /**
  * Help > Using Generative Fill.
  *
- * Generative Fill is the one feature in Pikado you cannot work out by clicking
+ * Generative Fill is the one feature in Rylia Canvas you cannot work out by clicking
  * around, because two of its steps happen somewhere other than the thing you
  * clicked: the key lives in a different dialog, and the model and effort live
  * in a third. It is also the only feature that spends the user's money and the
@@ -14,7 +14,7 @@ import { Dialog } from '../dialog.js';
  * wrong way to learn it.
  *
  * Written as instructions rather than reference. What each provider charges and
- * which model is current will drift, so this says what Pikado does and points
+ * which model is current will drift, so this says what Rylia Canvas does and points
  * at the dialogs that hold the current answer, instead of restating numbers
  * that would quietly go stale.
  *
@@ -47,7 +47,7 @@ export function showAiGuideDialog() {
     el('div.pkd-section', { text: 'Getting set up, once' }),
     el('ol.pkd-guide-steps', {},
       step(1, 'Get an API key. ',
-        p('Pikado ships none and has no server that could hold one — a key in a '
+        p('Rylia Canvas ships none and has no server that could hold one — a key in a '
           + 'client-side bundle is readable by anyone who opens devtools, so it '
           + 'has to be yours. OpenAI keys come from platform.openai.com/api-keys, '
           + 'Gemini keys from aistudio.google.com/apikey.'),
@@ -92,14 +92,14 @@ export function showAiGuideDialog() {
 
     el('div.pkd-section', { text: 'What it costs, and what it cannot do' }),
     el('ul', {},
-      el('li', { text: 'Your provider bills you directly. Pikado never sees the bill and takes no cut.' }),
+      el('li', { text: 'Your provider bills you directly. Rylia Canvas never sees the bill and takes no cut.' }),
       el('li', {
         text: 'Generation is 1024×1024. Fill a region larger than that and the '
           + 'result is softer than the rest of the image — the dialog says so before '
           + 'you spend anything.',
       }),
       el('li', {
-        text: 'Cancel stops Pikado waiting, but the provider may already have '
+        text: 'Cancel stops Rylia Canvas waiting, but the provider may already have '
           + 'started and may still charge for it.',
       }),
       el('li', {
@@ -112,13 +112,13 @@ export function showAiGuideDialog() {
       + 'Generate, and only after you have agreed to send to that host. Not the '
       + 'whole document, not your other open files, and nothing at all if you '
       + 'never use this feature.'),
-    p('Your key is held so that no other part of Pikado can read it back — it can '
+    p('Your key is held so that no other part of Rylia Canvas can read it back — it can '
       + 'only be written into a request header — so it cannot end up in a saved '
       + '.pkd, an autosave, an exported PSD, or an error message on screen. '
       + 'Forgetting it, and every send permission, is one button in AI Settings.'),
 
     el('div.pkd-note', {
-      text: 'Everything else in Pikado works with no key, no account and no network.',
+      text: 'Everything else in Rylia Canvas works with no key, no account and no network.',
     }),
   );
 

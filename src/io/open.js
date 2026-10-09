@@ -13,7 +13,7 @@ import { decodeImage } from './decode.js';
  * Ask before opening a PSD that would not fit.
  *
  * The number is worth showing because it is nowhere near the file size and the
- * user has no way to guess it: Pikado holds every layer buffer at document size,
+ * user has no way to guess it: Rylia Canvas holds every layer buffer at document size,
  * so a 0.76 MB file with 70 layers on a 2000x1500 canvas needs about 900 MB. The
  * dialog quotes the real figure rather than saying "large", because "large" gives
  * nobody anything to decide with.
@@ -32,7 +32,7 @@ async function askAboutOversizePSD(info) {
   dialog.setBody(
     el('div.pk-msg', {
       text: `It has ${info.layers} layers on a ${info.width} x ${info.height} canvas. `
-        + `Pikado keeps every layer at full canvas size, so opening them all needs about `
+        + `Rylia Canvas keeps every layer at full canvas size, so opening them all needs about `
         + `${mb} MB — well past the ${budgetMb} MB budget in Preferences. That is usually `
         + `enough to make the tab unresponsive or close it outright.`,
     }),
@@ -155,7 +155,7 @@ function documentFromFrames(frames, name) {
 /**
  * Place a canvas into an open document as a new layer, scaled to fit.
  *
- * Exported because this is also what a drag between two open Pikado documents
+ * Exported because this is also what a drag between two open Rylia Canvas documents
  * lands on (`src/ui/cross-doc-drag.js`). The contain-fit is the point: a layer
  * buffer is document-sized with no offset, so drawing the source at its own
  * size would put everything past the edge somewhere it is not stored.
@@ -395,7 +395,7 @@ function hostOf(url) {
  * Fetch an image dragged out of another page.
  *
  * Sent without cookies and without a referrer: this is the same request the
- * page you dragged from already made, and Pikado has no business telling that
+ * page you dragged from already made, and Rylia Canvas has no business telling that
  * server who you are or where the drag came from.
  *
  * A cross-origin image can only be *read* when the server allows it. There is a

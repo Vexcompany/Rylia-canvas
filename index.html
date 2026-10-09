@@ -69,12 +69,19 @@
           if (navigator.onLine === false) return;
           sessionStorage.setItem('rylia-healed', '1');
           console.warn('[rylia-canvas] the app did not start; clearing a stale service worker and reloading');
+          const appRoot = new URL('./', location.href);
           Promise.all([
             navigator.serviceWorker.getRegistrations().then(function (rs) {
-              return Promise.all(rs.map(function (r) { return r.unregister(); }));
+              return Promise.all(rs.filter(function (r) {
+                const scope = new URL(r.scope);
+                return scope.origin === appRoot.origin && scope.pathname === appRoot.pathname;
+              }).map(function (r) { return r.unregister(); }));
             }),
             typeof caches !== 'undefined'
-              ? caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); })
+              ? caches.keys().then(function (ks) {
+                  return Promise.all(ks.filter(function (k) { return k.startsWith('rylia-canvas-'); })
+                    .map(function (k) { return caches.delete(k); }));
+                })
               : null,
           ]).catch(function () { /* reload regardless */ }).then(function () { location.reload(); });
         }, 4000);
