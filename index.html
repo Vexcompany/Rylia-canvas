@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-    <title>Pikado — Image Studio</title>
-    <meta name="description" content="Pikado — a browser-based raster and vector image studio." />
+    <title>Rylia Canvas — Image Studio</title>
+    <meta name="description" content="Rylia Canvas — a browser-based raster and vector image studio." />
     <meta name="theme-color" content="#0f0f13" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <!-- iOS ignores the manifest's icons array, so it needs this to get a
@@ -64,11 +64,11 @@
        */
       window.addEventListener('load', function () {
         setTimeout(function () {
-          if (window.pikado || sessionStorage.getItem('pk-healed')) return;
+          if (window.pikado || sessionStorage.getItem('rylia-healed')) return;
           if (!('serviceWorker' in navigator)) return;
           if (navigator.onLine === false) return;
-          sessionStorage.setItem('pk-healed', '1');
-          console.warn('[pikado] the app did not start; clearing a stale service worker and reloading');
+          sessionStorage.setItem('rylia-healed', '1');
+          console.warn('[rylia-canvas] the app did not start; clearing a stale service worker and reloading');
           Promise.all([
             navigator.serviceWorker.getRegistrations().then(function (rs) {
               return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -80,6 +80,6 @@
         }, 4000);
       });
     </script>
-    <noscript>Pikado needs JavaScript enabled.</noscript>
+    <noscript>Rylia Canvas needs JavaScript enabled.</noscript>
   </body>
 </html>

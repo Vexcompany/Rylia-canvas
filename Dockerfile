@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# Pikado is a client-side app: the image is a build of static files and a web
+# Rylia Canvas is a client-side app: the image is a build of static files and a web
 # server to hand them out. Nothing runs server-side, so there is no runtime
 # Node process and no reason to ship one — the final image carries nginx and a
 # few hundred kilobytes of bundle, not a toolchain.
@@ -39,9 +39,9 @@ COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 
 # Metadata for anyone who pulls the image without the repository.
-LABEL org.opencontainers.image.title="Pikado" \
+LABEL org.opencontainers.image.title="Rylia Canvas" \
       org.opencontainers.image.description="Free, open-source Photoshop alternative that runs in your browser. Fully client-side apart from an optional, bring-your-own-key Generative Fill." \
-      org.opencontainers.image.source="https://github.com/koneb71/pikado" \
+      org.opencontainers.image.source="https://github.com/Vexcompany/Rylia-canvas" \
       org.opencontainers.image.licenses="MIT"
 
 EXPOSE 80

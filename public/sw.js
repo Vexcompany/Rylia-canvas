@@ -1,5 +1,5 @@
 /*
- * Pikado — offline shell.
+ * Rylia Canvas — offline shell.
  *
  * Hand-written on purpose. Vite hashes every emitted asset filename, so a
  * precache manifest would have to be generated at build time; instead this
@@ -19,7 +19,7 @@
  *                                   the background for next time.
  *
  * Cross-origin requests are never intercepted, and font files are the case that
- * makes the rule worth stating. Pikado downloads them from Google and stores the
+ * makes the rule worth stating. Rylia Canvas downloads them from Google and stores the
  * bytes in IndexedDB (src/text/font-manager.js), which is strictly better than a
  * cache entry: it survives eviction pressure differently, it is listed and
  * removable in the font browser, and it is what makes a downloaded family work
@@ -31,14 +31,14 @@
    cache-busting mechanism. */
 const VERSION = 'v1';
 
-const CACHE = `pikado-${VERSION}`;
+const CACHE = `rylia-canvas-${VERSION}`;
 
 /* Both entries are the same document, but a navigation can arrive as either
    URL and Cache API matching is by URL, not by resource. */
 const SHELL = ['./', './index.html'];
 
 /* Relative to the worker's own URL, which is the deployment root — so this
-   works unchanged whether Pikado is served from / or from a subdirectory. */
+   works unchanged whether Rylia Canvas is served from / or from a subdirectory. */
 const SHELL_FALLBACK = new URL('./index.html', self.location.href).href;
 
 self.addEventListener('install', (event) => {
@@ -64,7 +64,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const names = await caches.keys();
     await Promise.all(names.map((name) => (
-      name !== CACHE && name.startsWith('pikado-') ? caches.delete(name) : null
+      name !== CACHE && name.startsWith('rylia-canvas-') ? caches.delete(name) : null
     )));
     await self.clients.claim();
   })());
@@ -128,7 +128,7 @@ async function navigationFirst(req) {
     const cached = (await cache.match(req, { ignoreSearch: true }))
       || (await cache.match(SHELL_FALLBACK));
     if (cached) return cached;
-    return offlineResponse('Pikado has not been cached for offline use yet.');
+    return offlineResponse('Rylia Canvas has not been cached for offline use yet.');
   }
 }
 

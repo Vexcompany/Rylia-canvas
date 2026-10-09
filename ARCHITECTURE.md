@@ -1,4 +1,4 @@
-# Pikado — architecture contract
+# Rylia Canvas — architecture contract
 
 Read this before writing any module. It is the authoritative description of
 every shared API. Where this document and the code disagree, the code wins —
@@ -1126,11 +1126,11 @@ pipeline would not.
 
 ## AI — `src/ai/`
 
-The only corner of Pikado that can make a network request, and the only one that
+The only corner of Rylia Canvas that can make a network request, and the only one that
 can send a user's work off the machine. Everything about its shape follows from
 that, plus one fact that cannot be engineered around: **a static client-side app
 cannot hold a secret.** Anything in the bundle is readable in devtools, so the
-key is the user's, and Pikado ships none.
+key is the user's, and Rylia Canvas ships none.
 
 ```
 src/ai/
@@ -1322,7 +1322,7 @@ separate, import-free leaf because `icc.js` needs it to find a HEIC's profile an
 
 **Encoding** uses WebCodecs `VideoEncoder` (`hvc1`), because libheif-js has no
 HEVC encoder in it. The image is cut into 512x512 tiles (edge tiles padded by
-edge extension, not black), converted to I420 **by Pikado** with full-range
+edge extension, not black), converted to I420 **by Rylia Canvas** with full-range
 BT.601 and handed over as I420 frames, so the `nclx` written into the file
 describes the conversion that actually happened rather than guessing at a
 browser's. Alpha, when present, is a second grid of luma-only tiles linked by

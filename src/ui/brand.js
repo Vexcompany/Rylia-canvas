@@ -1,5 +1,5 @@
 /**
- * Pikado brand.
+ * Rylia Canvas brand.
  *
  * The mark is a diamond of two overlapping planes with a concentric aperture
  * knocked out of the middle. It says what the app is: planes composited over
@@ -16,7 +16,7 @@
  */
 
 export const BRAND = {
-  name: 'Pikado',
+  name: 'Rylia Canvas',
   tagline: 'Image studio',
   violet: '#7C6AF6',
   violetDeep: '#4B3BD6',

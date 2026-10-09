@@ -1,4 +1,4 @@
-# Pikado
+# Rylia Canvas
 
 A browser-based raster and vector image editor in the spirit of Photopea and
 Photoshop. Everything runs client-side — no server, no upload, no account.
@@ -15,8 +15,8 @@ at the moment you make that drag. Nothing else leaves your machine, and
 everything keeps working without any of them.
 
 ```bash
-git clone https://github.com/koneb71/pikado.git
-cd pikado
+git clone https://github.com/Vexcompany/Rylia-canvas.git
+cd Rylia-canvas
 npm install
 npm run dev      # http://localhost:5173 (Vite takes the next free port if busy)
 npm run build    # production bundle in dist/
@@ -31,8 +31,8 @@ the HEIC decoder, and nobody downloads it until they open a HEIC.
 Or with Docker, which builds the bundle and serves it from nginx:
 
 ```bash
-docker build -t pikado .
-docker run --rm -p 8080:80 pikado    # http://localhost:8080
+docker build -t rylia-canvas .
+docker run --rm -p 8080:80 rylia-canvas    # http://localhost:8080
 ```
 
 Nothing runs server-side, so the image carries no Node at all — just nginx and
@@ -44,14 +44,14 @@ of either is how a browser ends up asking for asset hashes the server no longer
 has.
 
 ## Demo
-https://pikado.koneb.me
+No public demo is deployed yet.
 
 <img width="1799" height="1041" alt="image" src="https://github.com/user-attachments/assets/d999296e-0532-469d-a47b-0f8b63c984b3" />
 
 
 ## What it is
 
-Pikado is a real layered image editor, not a canvas demo. The document model,
+Rylia Canvas is a real layered image editor, not a canvas demo. The document model,
 compositor, brush engine and history system are built the way a desktop editor
 builds them:
 
@@ -84,7 +84,7 @@ full size; you do not have to save them first. When the image sits inside a link
 — which on most sites it does — you get the picture rather than the page it
 points at, because the drag's markup is read before its URL list. Some sites
 refuse to let another page read their images at all, and there is no way around
-that from inside a tab: Pikado says which site refused and what to do instead
+that from inside a tab: Rylia Canvas says which site refused and what to do instead
 (right-click the image, Copy image, then paste), rather than silently opening
 something it cannot use.
 
@@ -105,7 +105,7 @@ it was, with no undo step to unpick:
 - **Drag a layer onto another document's tab.** Just that layer, or the whole
   selection if several are picked.
 - **Drag with the Move tool onto another document's tab.** Photoshop's own
-  gesture. The tab lights up; release, and Pikado takes you there.
+  gesture. The tab lights up; release, and Rylia Canvas takes you there.
 
 The same rule holds as for anything else arriving from outside: too big for
 where it is going means scaled down whole, never cropped. A dragged *layer* is
@@ -120,7 +120,7 @@ app that stores your work locally owes you a way to see it.
 ### iPhone photos and Mac icons
 
 A HEIC — what every iPhone has shot in since 2017 — opens like any other photo,
-in every browser. Safari decodes it natively; everywhere else Pikado loads
+in every browser. Safari decodes it natively; everywhere else Rylia Canvas loads
 libheif (compiled to WebAssembly) the first time you open one and keeps it for
 the rest of the session. The colour is handled the way it is for a JPEG: an
 iPhone photo carries a Display P3 profile, and the pixels are converted from it
@@ -144,7 +144,7 @@ itself.
 
 ## Your work stays in this browser
 
-Pikado autosaves. Open documents survive a refresh, a crash, and a laptop lid.
+Rylia Canvas autosaves. Open documents survive a refresh, a crash, and a laptop lid.
 There is no server and no account, and nothing is uploaded — with the single,
 opt-in exception of [Generative Fill](#generative-fill), which needs your own API
 key and asks before it sends anything.
@@ -177,7 +177,7 @@ key and asks before it sends anything.
 
 ## Offline, and installable
 
-Pikado never needed the network to do its work — every pixel is processed in the
+Rylia Canvas never needed the network to do its work — every pixel is processed in the
 tab. "Offline" only ever meant the shell could not be downloaded. A service
 worker fixes that: the first visit caches the app, every later visit runs from
 the cache, and a cold start with no network works.
@@ -198,7 +198,7 @@ like everything else, but the very first HEIC you open needs a network.
 A web manifest makes it installable as a standalone app. Losing the network gets
 a quiet pill in the menu bar and one reassuring line, not a red banner, because
 in an app that keeps your work locally it is not an error. When a new version has
-been fetched you get an "Update ready" button; Pikado will not reload the page on
+been fetched you get an "Update ready" button; Rylia Canvas will not reload the page on
 your behalf, since you might be halfway through a brush stroke.
 
 ## Selecting the hard things
@@ -208,14 +208,14 @@ and Mask answers a harder question — "where does this object end" — and it d
 it with two classical algorithms rather than a model.
 
 **The cut.** Paint a few strokes to say what is definitely subject and definitely
-background. Pikado fits a five-component Gaussian mixture to each set of colours,
+background. Rylia Canvas fits a five-component Gaussian mixture to each set of colours,
 builds a graph where every pixel is a node whose links to its neighbours are
 cheap across an edge and expensive across flat colour, and takes the minimum cut
 with the Boykov–Kolmogorov max-flow algorithm. Then it refits both mixtures from
 the result and cuts again. That is GrabCut, and it is genuinely good at finding
 where one material stops and another starts.
 
-**The matte.** A cut is binary, and real edges are not. Set a Radius and Pikado
+**The matte.** A cut is binary, and real edges are not. Set a Radius and Rylia Canvas
 stops trusting the cut inside a band around the boundary and asks the image
 instead: given the foreground and background colours typical of this
 neighbourhood, what mixture is this pixel? The closed-form answer to the
@@ -272,13 +272,13 @@ layer masked to your selection — non-destructive, so you can generate three
 attempts and keep the one that works. It sits next to Content-Aware Fill in the
 Edit menu, because they are the same job done two ways.
 
-**This is the only part of Pikado that can send your work anywhere.** (Web
+**This is the only part of Rylia Canvas that can send your work anywhere.** (Web
 fonts also use the network, but only ever to fetch a font — see
 [Fonts](#fonts).) So it is built to be refused easily:
 
-- **You bring the key.** Pikado ships no API credentials — in a static
+- **You bring the key.** Rylia Canvas ships no API credentials — in a static
   client-side app there is no such thing as a secret key, because anything in the
-  bundle is readable in devtools. The key is yours, and Pikado never sees a
+  bundle is readable in devtools. The key is yours, and Rylia Canvas never sees a
   server that could hold one on your behalf. **OpenAI** and **Gemini** are both
   supported; keys are held per provider, so switching between them cannot send
   one vendor's key to the other's endpoint.
@@ -297,7 +297,7 @@ fonts also use the network, but only ever to fetch a font — see
   provider says nothing about the other.
 - **The key travels in a header, never a URL.** That is worth stating because
   Google's own quickstart puts the key in a query string, and query strings end
-  up in proxy access logs, browser history and `Referer` headers. Pikado uses
+  up in proxy access logs, browser history and `Referer` headers. Rylia Canvas uses
   `x-goog-api-key`, and a test asserts the URL has no query string at all.
 - **Nothing runs by accident.** With no key and no consent the operation refuses
   before it builds a request, and that check lives in the AI layer rather than
@@ -384,7 +384,7 @@ identity to floating-point precision, and a round trip through a wider gamut has
 to be lossless.
 
 A JPEG, PNG or HEIC that carries a colour profile is converted from it into sRGB
-as it opens — by the browser for JPEG and PNG, by Pikado for HEIC — and the
+as it opens — by the browser for JPEG and PNG, by Rylia Canvas for HEIC — and the
 document is sRGB, because that is what its pixels now are. Labelling it with the
 file's profile instead would make every later Convert and proof convert out of
 that profile a second time. The file's profile is not dropped silently: Assign
@@ -565,7 +565,7 @@ depends on working Canvas2D or WebGL, and a jsdom canvas would make the whole
 thing meaningless. The runner boots the genuine app off-screen first, so tool
 registration, panels and menus are exercised on the way in, then asserts against
 the live registries. It reports counts at the top of the page and leaves the full
-report on `window.__pikadoTests` for automation.
+report on `window.__rylia-canvasTests` for automation.
 
 The assertions are about measurements, not smoke: exact pixel values, mean
 absolute difference between before and after, pixel counts, and timings with
@@ -583,7 +583,7 @@ traps the suite is built to avoid.
 | SVG | yes — rasterized, with simple shapes kept as editable paths | yes |
 | HEIC / HEIF | yes — natively in Safari, through bundled libheif everywhere else; Display P3 converted, alpha kept | yes, where the browser has an HEVC encoder (Safari; Chrome/Edge on macOS and Windows) |
 | ICNS (macOS icon) | yes — largest entry, PNG or legacy RLE | yes — 16 to 1024 px, never upscaled |
-| `.pkd` (Pikado native) | yes | yes — lossless, preserves everything |
+| `.pkd` (Rylia Canvas native) | yes | yes — lossless, preserves everything |
 
 `.pkd` is the format to use when you care about keeping your work intact. PSD
 export writes real layer records — including adjustment layers, masks, group
@@ -607,17 +607,17 @@ nesting, blend modes and fill opacity — but see the limits below.
 Stated plainly so you don't find out by clicking:
 
 - **On-device AI.** Generative Fill (above) works by asking a cloud provider with
-  your own key. Nothing in Pikado runs a model locally yet, so every AI feature
+  your own key. Nothing in Rylia Canvas runs a model locally yet, so every AI feature
   needs a network and an account somewhere else. Subject selection, upscaling and
   denoising are all things a browser could genuinely run on-device with a small
   ONNX model, and none of them are here — which means Select Subject stays
   classical, below, and there is no key-free AI at all.
 - **Raw decoding, the 3D workspace, and video.** Camera Raw is present as a
-  develop module (above), but Pikado cannot *decode* a raw file — CR2/NEF/ARW need
+  develop module (above), but Rylia Canvas cannot *decode* a raw file — CR2/NEF/ARW need
   per-sensor demosaicing and calibration data, and that is not here. No 3D
   workspace, and no video import or export.
 - **A trained model behind Select Subject.** Photoshop's is a neural network;
-  Pikado's is classical computer vision — histogram-contrast saliency to guess
+  Rylia Canvas's is classical computer vision — histogram-contrast saliency to guess
   where the subject is, then GrabCut (iterated graph cuts over Gaussian mixture
   colour models) to find its boundary. That is a real algorithm with real
   behaviour, not a stub: it finds the boundary between two *colour
@@ -632,7 +632,7 @@ Stated plainly so you don't find out by clicking:
   says so rather than losing the depth silently.
 
   The reason this is one bullet rather than three is that they share a blocker:
-  every pixel buffer in Pikado is an `HTMLCanvasElement`, and a canvas backing
+  every pixel buffer in Rylia Canvas is an `HTMLCanvasElement`, and a canvas backing
   store is 8-bit RGBA with no option. So depth, CMYK and Lab all wait on the
   same thing — a second pixel carrier — and 17 of the 27 blend modes are
   currently the browser's own `globalCompositeOperation`, which has no 16-bit
@@ -669,7 +669,7 @@ Stated plainly so you don't find out by clicking:
   trained coefficients rather than something that can be written from first
   principles. A detector that looks implemented and finds nothing would be
   worse than none, because you would blame the photograph.
-- **How Adobe reads our PSDs.** A Pikado → PSD → Pikado round trip is lossless
+- **How Adobe reads our PSDs.** A Rylia Canvas → PSD → Rylia Canvas round trip is lossless
   and byte-identical from the first save onward, and that is verified: layers,
   groups, masks, blend modes, fill opacity, layer styles (`lfx2`), live text
   (`TySh` with real EngineData, including warps), live vector shapes
@@ -686,7 +686,7 @@ Stated plainly so you don't find out by clicking:
   adjustments — Invert, Posterize, Threshold, Brightness/Contrast, Levels,
   Curves, Hue/Saturation, Colour Balance, Channel Mixer, Photo Filter and
   Selective Colour. The remaining thirteen open there as correctly named,
-  correctly masked but inert layers, and round-trip exactly through Pikado via a
+  correctly masked but inert layers, and round-trip exactly through Rylia Canvas via a
   private block Photoshop safely ignores.
 
   That private block would happily hide an export carrying nothing anyone else
@@ -719,7 +719,7 @@ Stated plainly so you don't find out by clicking:
   undo, a script) is detected and the canonical form shown instead, which at
   that point is the honest answer.
 
-PSD writing was verified against Pikado's own parser and at the byte level, but
+PSD writing was verified against Rylia Canvas's own parser and at the byte level, but
 not against a real Photoshop install — that wasn't available here.
 
 ## Performance
@@ -789,11 +789,16 @@ exist. Both exist because this project has been bitten by their absence.
 ## Licence
 
 [MIT](LICENSE). Photoshop and Photopea are trademarks of their respective
-owners; Pikado is an independent implementation and is not affiliated with
+owners; Rylia Canvas is an independent implementation and is not affiliated with
 either.
 
 HEIC decoding uses [libheif](https://github.com/strukturag/libheif) and
 [libde265](https://github.com/strukturag/libde265), through
 [libheif-js](https://github.com/catdad-experiments/libheif-js), all LGPL-3.0.
 It ships as the package's own file, unmodified and loaded separately from the
-rest of Pikado, so it can be replaced with any compatible build.
+rest of Rylia Canvas, so it can be replaced with any compatible build.
+
+
+## Project origin and attribution
+
+Rylia Canvas is a rebranded fork of [Pikado](https://github.com/koneb71/pikado), originally created by Neiell Care L. Paradiang. The upstream project is distributed under the MIT License. The original copyright and license notice are retained in this repository.

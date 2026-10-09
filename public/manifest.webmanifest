@@ -1,6 +1,6 @@
 {
-  "name": "Pikado",
-  "short_name": "Pikado",
+  "name": "Rylia Canvas",
+  "short_name": "Rylia",
   "description": "A browser-based raster and vector image studio. Works offline.",
   "start_url": ".",
   "scope": ".",
