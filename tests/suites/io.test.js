@@ -215,24 +215,24 @@ function assertFixture(t, src, out, tag, exact) {
 /* .pkd                                                                */
 /* ------------------------------------------------------------------ */
 
-suite('io / .pkd lossless round trip', async (t) => {
+suite('io / .rytf lossless round trip', async (t) => {
   const { doc } = buildFixture(t);
 
   const blob = await savePKD(doc);
-  t.eq(blob.type, 'application/x-pikado', 'savePKD writes a Pikado project blob');
+  t.eq(blob.type, 'application/x-rylia-canvas', 'savePKD writes a Rylia Canvas project blob');
   t.gt(blob.size, 1000, 'and it is not trivially small');
   const buf = await blob.arrayBuffer();
   const magic = String.fromCharCode(...new Uint8Array(buf, 0, 8));
-  t.eq(magic, 'PIKADO01', 'the file starts with the PIKADO01 magic');
+  t.eq(magic, 'RYTF0001', 'the file starts with the RYTF0001 magic');
 
   const out = await loadPKD(buf);
-  assertFixture(t, doc, out, 'pkd', true);
+  assertFixture(t, doc, out, 'rytf', true);
 
-  t.eq(out.name, 'Fixture', 'pkd: the document name survives');
-  t.eq(out.activePathId, doc.activePathId, 'pkd: the active path id survives');
-  t.eq(out.activeLayerId, doc.activeLayerId, 'pkd: the active layer survives');
-  t.notOk(out.dirty, 'pkd: a freshly loaded document is not dirty');
-  t.eq(out.history.states.length, 1, 'pkd: history starts fresh');
+  t.eq(out.name, 'Fixture', 'rytf: the document name survives');
+  t.eq(out.activePathId, doc.activePathId, 'rytf: the active path id survives');
+  t.eq(out.activeLayerId, doc.activeLayerId, 'rytf: the active layer survives');
+  t.notOk(out.dirty, 'rytf: a freshly loaded document is not dirty');
+  t.eq(out.history.states.length, 1, 'rytf: history starts fresh');
 
   // The "bit-identical composite" assertion is only worth anything if every
   // layer in the fixture actually reaches the composite. Prove that it does.
@@ -246,7 +246,7 @@ suite('io / .pkd lossless round trip', async (t) => {
     doc.touch();
     if (!(delta > 0.02)) weak.push(`${l.name} (${delta.toFixed(4)})`);
   }
-  t.eq(weak, [], 'pkd: every layer of the fixture measurably affects the composite');
+  t.eq(weak, [], 'rytf: every layer of the fixture measurably affects the composite');
 
   await t.throws(() => loadPKD(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]).buffer),
     'pkd: a file without the magic is rejected');
