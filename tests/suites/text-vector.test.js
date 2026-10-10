@@ -1,4 +1,6 @@
 import { suite } from '../harness.js';
+import { app } from '/src/core/app.js';
+import { getTool } from '/src/tools/base.js';
 import { Layer, LayerType } from '/src/core/layer.js';
 import {
   rasterizeTextLayer, measureTextLayer, layoutText, textOrigin, textLayerToMask,
@@ -205,6 +207,10 @@ suite('text / size, colour, alignment, decoration', async (t) => {
   t.gt(under, plain, 'underline adds ink');
   t.gt(strike, plain, 'strikethrough adds ink');
   t.gt(both, Math.max(under, strike), 'both rules together add more than either alone');
+  t.eq(resolveTextProps({ content: 'mixed Case', allCaps: true }).renderText, 'MIXED CASE',
+    'All Caps changes the rendered text while preserving editable content');
+  t.eq(resolveTextProps({ content: 'mixed Case', allCaps: true }).allCaps, true,
+    'the resolved typography keeps the live editor in All Caps mode');
   const underBounds = inkBounds(rasterizeTextLayer(textLayer({ content: 'under', underline: true }), doc));
   const plainBounds = inkBounds(rasterizeTextLayer(textLayer({ content: 'under' }), doc));
   t.gt(underBounds.maxY, plainBounds.maxY, 'the underline sits below the baseline');
@@ -618,5 +624,58 @@ suite('vector / authored geometry survives document transforms', async (t) => {
     t.eq(`${layer.text.x},${layer.text.y}`, '20,80', 'the anchor scales');
     t.eq(layer.text.scale, 2, 'the glyph scale doubles');
     t.eq(`${layer.text.boxWidth},${layer.text.boxHeight}`, '200,100', 'and the wrap box scales with it');
+  }
+});
+
+
+suite('typography / Character defaults and Type options stay in sync', async (t) => {
+  const type = getTool('type');
+  const originalDefaults = app.textDefaults;
+  const originalState = { ...type.state };
+  const originalColorPinned = type.colorPinned;
+
+  try {
+    app.textDefaults = {
+      fontFamily: 'playfair', fontStyle: 'bold italic', fontSize: 32,
+      leading: 48, tracking: 125, color: '#123456', fauxBold: true,
+      fauxItalic: true, underline: true, strikethrough: true, allCaps: true,
+      antiAlias: 'crisp', align: 'center', baselineShift: 3,
+    };
+    type.pullDefaultsFromApp();
+    const props = type.textDefaults();
+    t.eq({
+      font: props.font, size: props.size, weight: props.weight, style: props.style,
+      color: props.color, align: props.align, lineHeight: props.lineHeight,
+      letterSpacing: props.letterSpacing, underline: props.underline,
+      strikethrough: props.strikethrough, allCaps: props.allCaps,
+      antialias: props.antialias, baselineShift: props.baselineShift,
+    }, {
+      font: 'playfair', size: 32, weight: 700, style: 'italic',
+      color: '#123456', align: 'center', lineHeight: 1.5,
+      letterSpacing: 4, underline: true, strikethrough: true, allCaps: true,
+      antialias: 'crisp', baselineShift: 3,
+    }, 'Character aliases convert to Type values without losing units or styling');
+
+    const layer = textLayer({
+      font: 'arial', size: 18, weight: 600, style: 'italic', align: 'right',
+      lineHeight: 1.5, letterSpacing: 3, underline: true, strikethrough: true,
+      allCaps: true, baselineShift: 5,
+    });
+    type.pullFromLayer(layer);
+    t.eq({
+      font: type.state.font, weight: type.state.weight, italic: type.state.italic,
+      align: type.state.align, lineHeight: type.state.lineHeight,
+      letterSpacing: type.state.letterSpacing, underline: type.state.underline,
+      strikethrough: type.state.strikethrough, allCaps: type.state.allCaps,
+      baselineShift: type.state.baselineShift,
+    }, {
+      font: 'arial', weight: 600, italic: true, align: 'right', lineHeight: 1.5,
+      letterSpacing: 3, underline: true, strikethrough: true, allCaps: true,
+      baselineShift: 5,
+    }, 'existing editable text restores its typography in the Type options');
+  } finally {
+    app.textDefaults = originalDefaults;
+    Object.assign(type.state, originalState);
+    type.colorPinned = originalColorPinned;
   }
 });
