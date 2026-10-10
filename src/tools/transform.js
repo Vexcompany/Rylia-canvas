@@ -284,6 +284,7 @@ export function startTransform(doc, opts = {}) {
     baseSelection: null,
     bounds,
     params: { tx: 0, ty: 0, sx: 1, sy: 1, angle: 0, skewX: 0, skewY: 0 },
+    lockAspectRatio: false,
     pivotRel: { x: 0.5, y: 0.5 },
     matrix: new DOMMatrix(),
     quad: cornersOfRect(bounds),
@@ -322,6 +323,7 @@ export function transformSelectionStart(doc) {
     baseSelection: new Uint8ClampedArray(doc.selection.mask),
     bounds: { x: b.x, y: b.y, width: Math.max(1, b.width), height: Math.max(1, b.height) },
     params: { tx: 0, ty: 0, sx: 1, sy: 1, angle: 0, skewX: 0, skewY: 0 },
+    lockAspectRatio: false,
     pivotRel: { x: 0.5, y: 0.5 },
     matrix: new DOMMatrix(),
     quad: cornersOfRect({ x: b.x, y: b.y, width: Math.max(1, b.width), height: Math.max(1, b.height) }),
@@ -581,7 +583,7 @@ export function setTransformMode(mode) {
 /* ------------------------------------------------------------------ */
 
 /**
- * @returns {null|{x,y,width,height,scaleX,scaleY,angle,skewX,skewY,pivotX,pivotY,mode,freeform,bounds}}
+ * @returns {null|{x,y,width,height,scaleX,scaleY,angle,skewX,skewY,pivotX,pivotY,mode,lockAspectRatio,freeform,bounds}}
  */
 export function getTransformNumeric() {
   const s = app.transformSession;
@@ -600,15 +602,27 @@ export function getTransformNumeric() {
     pivotX: s.pivotRel.x,
     pivotY: s.pivotRel.y,
     mode: s.mode,
+    lockAspectRatio: !!s.lockAspectRatio,
     freeform: !!(s.freeform || s.warp),
     bounds: { ...s.bounds },
   };
 }
 
+/** Lock or unlock proportional scaling for corner drags and numeric scale fields. */
+export function setTransformAspectLock(locked) {
+  const s = app.transformSession;
+  if (!s) return false;
+  s.lockAspectRatio = !!locked;
+  app.emit('tool-options', app.tool);
+  app.requestRender();
+  return s.lockAspectRatio;
+}
+
 /**
  * Apply numeric fields. Accepts any subset of
  * `{x, y, width, height, scaleX, scaleY, angle, skewX, skewY, pivotX, pivotY}`
- * where width/height are percentages.
+ * where width/height are percentages. With aspect lock enabled, changing one
+ * scale axis proportionally updates the other unless both are supplied.
  */
 export function setTransformNumeric(obj) {
   const s = app.transformSession;
@@ -631,10 +645,20 @@ export function setTransformNumeric(obj) {
   const prev = { ...s.params };
   const pd0 = pivotDest(s);
   const freeform = !!(s.freeform || s.warp);
-  if (obj.scaleX != null) s.params.sx = obj.scaleX;
-  else if (obj.width != null) s.params.sx = obj.width / 100;
-  if (obj.scaleY != null) s.params.sy = obj.scaleY;
-  else if (obj.height != null) s.params.sy = obj.height / 100;
+  const nextSx = obj.scaleX != null ? obj.scaleX : obj.width != null ? obj.width / 100 : null;
+  const nextSy = obj.scaleY != null ? obj.scaleY : obj.height != null ? obj.height / 100 : null;
+  if (s.lockAspectRatio && nextSx != null && nextSy == null) {
+    const factor = Math.abs(prev.sx) > 1e-4 ? nextSx / prev.sx : 1;
+    s.params.sx = nextSx;
+    s.params.sy = prev.sy * factor;
+  } else if (s.lockAspectRatio && nextSy != null && nextSx == null) {
+    const factor = Math.abs(prev.sy) > 1e-4 ? nextSy / prev.sy : 1;
+    s.params.sy = nextSy;
+    s.params.sx = prev.sx * factor;
+  } else {
+    if (nextSx != null) s.params.sx = nextSx;
+    if (nextSy != null) s.params.sy = nextSy;
+  }
   if (obj.angle != null) s.params.angle = obj.angle;
   if (obj.skewX != null) s.params.skewX = clamp(obj.skewX, -85, 85);
   if (obj.skewY != null) s.params.skewY = clamp(obj.skewY, -85, 85);
@@ -938,7 +962,7 @@ function dragScale(s, e, isCorner) {
   if (wantX && Math.abs(r0x) > 1e-6) nsx = (q.x - ref.x) / r0x;
   if (wantY && Math.abs(r0y) > 1e-6) nsy = (q.y - ref.y) / r0y;
 
-  if (e.shiftKey) {
+  if (e.shiftKey || (s.lockAspectRatio && isCorner)) {
     const fx = d.params.sx ? nsx / d.params.sx : 1;
     const fy = d.params.sy ? nsy / d.params.sy : 1;
     const f = isCorner ? (Math.abs(fx) + Math.abs(fy)) / 2 : Math.abs(wantX ? fx : fy);
