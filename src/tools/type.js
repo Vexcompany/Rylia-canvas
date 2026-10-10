@@ -21,7 +21,7 @@ import { toHex, parseColor, toCss } from '../core/color.js';
 import { paramDialog } from '../ui/dialog.js';
 import { cmd, sep } from '../ui/canvas-menu.js';
 import { formatAccel } from '../commands/registry.js';
-import { FONT_WEIGHTS, fontStack, ensureFont, invalidateFontMetrics } from '../text/fonts.js';
+import { FONT_WEIGHTS, fontStack, ensureFont, invalidateFontMetrics, normalizeFontId } from '../text/fonts.js';
 import { fontOptions, resolveFontChoice } from '../ui/font-field.js';
 import { BROWSE_FONTS } from '../text/fonts.js';
 import {
@@ -217,6 +217,7 @@ class TypeSession {
     node.style.font = `${t.italic ? 'italic' : 'normal'} ${t.weight} ${t.size}px/${lay.lineStep}px ${fontStack(t.font)}`;
     node.style.letterSpacing = `${t.letterSpacing}px`;
     node.style.textAlign = t.align || 'left';
+    node.style.textTransform = t.allCaps ? 'uppercase' : 'none';
     node.style.caretColor = cssColor(t.color);
     node.classList.toggle('is-paragraph', !!t.paragraph);
     node.classList.toggle('is-vertical', !!t.vertical);
@@ -477,6 +478,8 @@ class TypeToolBase extends Tool {
         { key: 'lineHeight', label: 'Leading', type: 'number', min: 0, max: 20, step: 0.05, default: 1.2, hint: 'Multiple of the type size (0 = automatic)' },
         { key: 'letterSpacing', label: 'Tracking', type: 'number', min: -200, max: 400, step: 0.5, default: 0, unit: 'px' },
         { key: 'underline', label: 'Underline', type: 'checkbox', default: false },
+        { key: 'strikethrough', label: 'Strikethrough', type: 'checkbox', default: false },
+        { key: 'allCaps', label: 'All Caps', type: 'checkbox', default: false },
         { key: 'antialias', label: 'Anti-alias', type: 'select', options: ANTIALIAS_OPTIONS, default: 'smooth' },
         ...extra,
         { key: '_warp', label: 'Warp…', type: 'button', onClick: () => openWarpDialog() },
@@ -489,10 +492,43 @@ class TypeToolBase extends Tool {
     /** Set once the user picks a colour, so the foreground stops seeding it. */
     this.colorPinned = false;
     this.drag = null;
+
+    // The Character panel and the options bar share one set of defaults. Keep
+    // both directions live so changing a default in either surface is visible
+    // immediately, without changing a selected layer behind the user's back.
+    app.on('text-defaults-change', (detail = {}) => {
+      const preserveColor = detail.source === 'foreground'
+        || (detail.key !== 'color' && !this.colorPinned);
+      this.pullDefaultsFromApp({ preserveColor });
+      if (this === app.tool) app.emit('tool-options', this);
+    });
+    app.on('text-attributes-change', (detail = {}) => {
+      if (detail.source === 'type-tool' || this !== app.tool || !detail.layer) return;
+      if (currentTextLayer(app.activeDoc) === detail.layer) this.pullFromLayer(detail.layer);
+    });
+    app.on('doc-selection', () => {
+      if (this !== app.tool) return;
+      const layer = currentTextLayer(app.activeDoc);
+      if (layer) this.pullFromLayer(layer);
+      else {
+        this.pullDefaultsFromApp({ preserveColor: !this.colorPinned });
+        app.emit('tool-options', this);
+      }
+    });
   }
 
   onActivate() {
-    if (!this.colorPinned) this.state.color = toHex(app.foreground);
+    const layer = currentTextLayer(app.activeDoc);
+    if (layer) this.pullFromLayer(layer);
+    else this.pullDefaultsFromApp({ preserveColor: !this.colorPinned });
+    if (!this.colorPinned) {
+      // Preserve the established foreground-colour default until the user
+      // explicitly chooses a Character or Type colour.
+      this.state.color = toHex(app.foreground);
+      const defaults = app.textDefaults || (app.textDefaults = {});
+      defaults.color = this.state.color;
+      app.emit('text-defaults-change', { key: 'color', value: this.state.color, source: 'foreground' });
+    }
     this.warmFont();
     app.emit('tool-options', this);
   }
@@ -530,6 +566,9 @@ class TypeToolBase extends Tool {
       lineHeight: Number(s.lineHeight) || 0,
       letterSpacing: Number(s.letterSpacing) || 0,
       underline: !!s.underline,
+      strikethrough: !!s.strikethrough,
+      allCaps: !!s.allCaps,
+      baselineShift: Number(s.baselineShift) || 0,
       antialias: s.antialias || 'smooth',
       vertical: this.vertical,
     };
@@ -548,9 +587,77 @@ class TypeToolBase extends Tool {
     this.state.lineHeight = t.lineStep == null ? 0 : Math.round((t.lineStep / t.size) * 1000) / 1000;
     this.state.letterSpacing = Math.round(t.letterSpacing * 100) / 100;
     this.state.underline = t.underline;
+    this.state.strikethrough = t.strikethrough;
+    this.state.allCaps = !!layer.text.allCaps;
+    this.state.baselineShift = t.baselineShift;
     this.state.antialias = t.antialias;
     this.colorPinned = true;
     app.emit('tool-options', this);
+    if (session && session.layer === layer) session.sync();
+  }
+
+  /** Read the Character panel's Photoshop-style defaults into Type options. */
+  pullDefaultsFromApp({ preserveColor = false } = {}) {
+    const d = app.textDefaults || {};
+    const size = Math.max(1, Number(d.fontSize ?? d.size ?? this.state.size) || 24);
+    const fontStyle = String(d.fontStyle || d.style || 'regular').toLowerCase();
+    const boldFromStyle = /\bbold\b/.test(fontStyle);
+    const italicFromStyle = /italic|oblique/.test(fontStyle);
+
+    this.state.font = normalizeFontId(d.fontFamily || d.font || this.state.font || 'system');
+    this.state.size = size;
+    this.state.weight = d.weight != null && Number.isFinite(Number(d.weight))
+      ? Number(d.weight) : (d.fauxBold || boldFromStyle ? 700 : 400);
+    this.state.italic = d.italic != null ? !!d.italic : (!!d.fauxItalic || italicFromStyle);
+    if (!preserveColor) {
+      this.state.color = toHex(parseColor(d.color || '#000000'));
+      this.colorPinned = true;
+    }
+    this.state.align = d.align || 'left';
+    if (d.lineHeight != null) this.state.lineHeight = Number(d.lineHeight) || 0;
+    else {
+      const leading = Number(d.leading);
+      this.state.lineHeight = Number.isFinite(leading) && leading > 0 ? leading / size : 0;
+    }
+    this.state.letterSpacing = d.letterSpacing != null
+      ? (Number(d.letterSpacing) || 0) : ((Number(d.tracking) || 0) * size / 1000);
+    this.state.underline = !!d.underline;
+    this.state.strikethrough = !!d.strikethrough;
+    this.state.allCaps = !!d.allCaps;
+    this.state.baselineShift = Number(d.baselineShift) || 0;
+    this.state.antialias = d.antiAlias || d.antialias || 'smooth';
+  }
+
+  /** Write supported Type options back to the shared Character defaults. */
+  writeDefault(key, value) {
+    const d = app.textDefaults || (app.textDefaults = {});
+    const size = Math.max(1, Number(this.state.size) || 24);
+    switch (key) {
+      case 'font': d.fontFamily = normalizeFontId(value); break;
+      case 'size': d.fontSize = Math.max(1, Number(value) || 1); break;
+      case 'weight':
+      case 'italic': {
+        const weight = Number(this.state.weight) || 400;
+        const bold = weight >= 600;
+        const italic = !!this.state.italic;
+        d.weight = weight;
+        d.fontStyle = bold ? (italic ? 'bold italic' : 'bold') : (italic ? 'italic' : 'regular');
+        d.fauxBold = bold;
+        d.fauxItalic = italic;
+        break;
+      }
+      case 'color': d.color = value; break;
+      case 'align': d.align = value; break;
+      case 'lineHeight': d.leading = Number(value) > 0 ? Number(value) * size : 0; break;
+      case 'letterSpacing': d.tracking = ((Number(value) || 0) / size) * 1000; break;
+      case 'underline': d.underline = !!value; break;
+      case 'strikethrough': d.strikethrough = !!value; break;
+      case 'allCaps': d.allCaps = !!value; break;
+      case 'antialias': d.antiAlias = value; break;
+      default: return false;
+    }
+    app.emit('text-defaults-change', { key, value, source: 'type-tool' });
+    return true;
   }
 
   /** Load a webfont, then re-measure everything that depends on its metrics. */
@@ -588,7 +695,10 @@ class TypeToolBase extends Tool {
 
     const doc = this.doc;
     const layer = currentTextLayer(doc);
-    if (!layer) return;
+    if (!layer) {
+      this.writeDefault(key, value);
+      return;
+    }
     const t = layer.text;
     switch (key) {
       case 'font': t.font = value; break;
@@ -600,6 +710,8 @@ class TypeToolBase extends Tool {
       case 'lineHeight': t.lineHeight = Number(value) || 0; break;
       case 'letterSpacing': t.letterSpacing = Number(value) || 0; break;
       case 'underline': t.underline = !!value; break;
+      case 'strikethrough': t.strikethrough = !!value; break;
+      case 'allCaps': t.allCaps = !!value; break;
       case 'antialias': t.antialias = value; break;
       default: return;
     }
@@ -612,6 +724,7 @@ class TypeToolBase extends Tool {
       // Scrubbing a number field fires many changes; only record one step.
       commitAttributes();
     }
+    app.emit('text-attributes-change', { layer, key, source: 'type-tool' });
     app.requestRender();
   }
 

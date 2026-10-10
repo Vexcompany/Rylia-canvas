@@ -143,9 +143,27 @@ registerPanel({
      * @param {boolean} live true while dragging — no history entry yet
      */
     const set = (key, value, live) => {
-      const target = source();
+      const layer = textLayer();
+      const target = layer ? layer.text : app.textDefaults;
       target[key] = value;
       if (EXCLUSIVE[key] && value) target[EXCLUSIVE[key]] = false;
+      if (!layer && key === 'fontStyle') {
+        const style = String(value).toLowerCase();
+        target.weight = /\bbold\b/.test(style) ? 700 : 400;
+        target.fauxBold = /\bbold\b/.test(style);
+        target.fauxItalic = /italic|oblique/.test(style);
+      } else if (!layer && key === 'fauxBold') {
+        target.weight = value ? Math.max(Number(target.weight) || 400, 700) : 400;
+        target.fontStyle = value
+          ? (target.fauxItalic ? 'bold italic' : 'bold')
+          : (target.fauxItalic ? 'italic' : 'regular');
+      } else if (!layer && key === 'fauxItalic') {
+        target.fontStyle = target.fauxBold
+          ? (value ? 'bold italic' : 'bold')
+          : (value ? 'italic' : 'regular');
+      }
+      if (layer) app.emit('text-attributes-change', { layer, key, source: 'character' });
+      else app.emit('text-defaults-change', { key, value, source: 'character' });
       applyToLayer(live ? null : 'Character');
       sync();
     };
@@ -329,6 +347,8 @@ registerPanel({
     app.on('active-doc', sync);
     app.on('doc-structure', sync);
     app.on('doc-selection', sync);
+    app.on('text-defaults-change', sync);
+    app.on('text-attributes-change', sync);
 
     sync();
     return { refresh: sync };

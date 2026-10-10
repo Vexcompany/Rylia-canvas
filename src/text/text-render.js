@@ -228,6 +228,7 @@ export function resolveTextProps(raw) {
     __resolved: true,
     content,
     renderText,
+    allCaps: !!t.allCaps,
     font,
     size,
     weight,
