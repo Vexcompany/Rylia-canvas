@@ -154,7 +154,7 @@ key and asks before it sends anything.
   thumbnail) on one side, the project bytes on the other. IndexedDB hands back
   whole records, so keeping a 50 MB payload out of the metadata store is what
   lets the start screen list twenty projects instantly.
-- **What.** The payload is a `.pkd` blob — byte for byte the same lossless format
+- **What.** The payload is a `.rytf` blob — byte for byte the same lossless format
   `File > Save` writes. Persistence and export share one serialiser, so there is
   no second "autosave schema" to drift out of step and no format you cannot open
   again by hand. Undo history is deliberately not persisted: Photoshop does not
@@ -287,7 +287,7 @@ fonts also use the network, but only ever to fetch a font — see
   IndexedDB, in plain text, and the dialog says exactly that rather than implying
   browser storage protects anything from a script running on the page.
 - **It cannot end up in your files.** The key is never a property of a document
-  or a layer, so it cannot reach a `.pkd`, an autosave, a history state or a PSD
+  or a layer, so it cannot reach a `.rytf`, an autosave, a history state or a PSD
   export. The module exports no way to read the key back; the only thing it can
   do is write itself into a request header, which is what stops it appearing in a
   URL, a log line, or an error message on screen.
@@ -434,7 +434,7 @@ Only the Latin faces are fetched. This is not a nicety — Noto Sans JP is 124
 separate files and about 5 MB for a single weight, of which exactly one is
 Latin, so the difference is a 43 KB download against a 5 MB one.
 
-A `.pkd` records which families its text uses, with their category and weights —
+A `.rytf` records which families its text uses, with their category and weights —
 a reference, never the font file. Reopening fetches what is missing; if it
 cannot, the text renders in a substitute of the right shape (a serif for a
 serif) and one message names what is missing. The layer keeps naming the font it
@@ -513,7 +513,7 @@ src/
   layers/      layer operations (merge, group, mask, rasterize…)
   edit/        clipboard, fill & stroke
   commands/    command registry + every menu command
-  io/          open/save, PSD read & write, SVG, GIF, HEIC, ICNS, native .pkd
+  io/          open/save, PSD read & write, SVG, GIF, HEIC, ICNS, native .rytf
                format, IndexedDB store, session autosave, offline registration
   ui/          menubar, toolbar, options bar, panels, dialogs, canvas view,
                start screen, canvas context menu, brand
@@ -583,9 +583,10 @@ traps the suite is built to avoid.
 | SVG | yes — rasterized, with simple shapes kept as editable paths | yes |
 | HEIC / HEIF | yes — natively in Safari, through bundled libheif everywhere else; Display P3 converted, alpha kept | yes, where the browser has an HEVC encoder (Safari; Chrome/Edge on macOS and Windows) |
 | ICNS (macOS icon) | yes — largest entry, PNG or legacy RLE | yes — 16 to 1024 px, never upscaled |
-| `.pkd` (Rylia Canvas native) | yes | yes — lossless, preserves everything |
+| `.rytf` (Rylia Canvas native) | yes | yes — lossless, preserves everything |
+| `.pkd` (legacy Rylia Canvas projects) | yes | no — open and use Save As to convert |
 
-`.pkd` is the format to use when you care about keeping your work intact. PSD
+`.rytf` is the format to use when you care about keeping your work intact. Older `.pkd` projects remain openable; saving them creates the new `.rytf` format. PSD
 export writes real layer records — including adjustment layers, masks, group
 nesting, blend modes and fill opacity — but see the limits below.
 
