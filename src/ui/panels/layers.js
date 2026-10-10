@@ -120,7 +120,7 @@ function buildLayersPanel(bodyEl) {
       const doc = app.activeDoc;
       if (!doc) return;
       const list = targetLayers(doc);
-      if (!list.length) return;
+      if (!list.length || blendSel.value === '__layer_mixed__') return;
       for (const l of list) l.blendMode = blendSel.value;
       doc.commit('Blending Mode');
     },
@@ -236,22 +236,45 @@ function buildLayersPanel(bodyEl) {
     return el('button.pk-icon-btn', { type: 'button', title, html: icon(iconName, { size: 15 }), onclick: onClick });
   }
 
+  function isLayerLockOn(layer, key) {
+    const lock = layer.locked || {};
+    if (key === 'all') {
+      return !!(lock.all || (lock.pixels && lock.position && lock.transparency));
+    }
+    return !!(lock.all || lock[key]);
+  }
+
   function lockButton(key, iconName, title) {
     const node = el('button.pk-icon-btn', {
       type: 'button', title, html: icon(iconName, { size: 13 }),
       onclick: () => withDoc((doc) => {
         const list = targetLayers(doc);
         if (!list.length) return;
-        const on = !list.every((l) => l.locked[key]);
+        const on = !list.every((l) => isLayerLockOn(l, key));
         for (const l of list) {
-          l.locked = { ...l.locked, [key]: on };
-          if (key === 'all' && on) l.locked = { all: true, pixels: true, position: true, transparency: true };
-          if (key === 'all' && !on) l.locked = { all: false, pixels: false, position: false, transparency: false };
+          if (key === 'all') {
+            l.locked = { all: on, pixels: on, position: on, transparency: on };
+            continue;
+          }
+
+          // "Lock all" is a shortcut for the three individual locks. When the
+          // user toggles one of those while it is active, clear the shortcut
+          // and preserve the other locks instead of leaving all:true to
+          // silently keep the supposedly unlocked property locked.
+          const lock = { ...(l.locked || {}) };
+          if (lock.all) {
+            lock.all = false;
+            lock.pixels = true;
+            lock.position = true;
+            lock.transparency = true;
+          }
+          lock[key] = on;
+          l.locked = lock;
         }
         doc.commit(on ? 'Lock Layer' : 'Unlock Layer');
       }),
     });
-    return { key, node };
+    return { key, node, title };
   }
 
   /** `Opacity: [num] [range]` pair that drives every selected layer. */
@@ -277,9 +300,15 @@ function buildLayersPanel(bodyEl) {
     const node = el('div.pk-lay-op', {}, el('span.pk-lay-hlabel', { text: label }), num, range);
     return {
       node,
-      set(v) {
+      set(v, mixed = false) {
         const s = String(Math.round(v * 100));
-        if (document.activeElement !== num) num.value = s;
+        const hint = `Selected layers have different ${label.toLowerCase()} values; changing this control applies to all selected layers.`;
+        node.classList.toggle('mixed', mixed);
+        num.placeholder = mixed ? 'Mixed' : '';
+        num.title = mixed ? hint : `${label} for selected layers`;
+        range.title = mixed ? hint : `${label} for selected layers`;
+        range.style.opacity = mixed ? '.65' : '';
+        if (document.activeElement !== num) num.value = mixed ? '' : s;
         range.value = s;
       },
       enable(on) { num.disabled = !on; range.disabled = !on; },
@@ -780,20 +809,52 @@ function buildLayersPanel(bodyEl) {
 
   function syncHeader(doc) {
     const l = doc.activeLayer();
+    const list = targetLayers(doc);
     const isGroup = !!l && l.type === LayerType.GROUP;
     if (blendHasPassThrough !== isGroup) {
       blendHasPassThrough = isGroup;
       fillBlendSelect(blendSel, isGroup);
     }
+
+    const mixedBlend = list.length > 1 && list.some((layer) => layer.blendMode !== list[0].blendMode);
+    let mixedOption = blendSel.querySelector('option[data-layer-mixed]');
+    if (mixedBlend) {
+      if (!mixedOption) {
+        mixedOption = el('option', { value: '__layer_mixed__', text: 'Mixed' });
+        mixedOption.disabled = true;
+        mixedOption.dataset.layerMixed = 'true';
+        blendSel.insertBefore(mixedOption, blendSel.firstChild);
+      }
+      blendSel.value = '__layer_mixed__';
+      blendSel.title = 'Selected layers have different blend modes; choosing a mode applies it to all selected layers.';
+    } else {
+      if (mixedOption) mixedOption.remove();
+      blendSel.value = l ? l.blendMode : 'normal';
+      if (!blendSel.value) blendSel.value = 'normal';
+      blendSel.title = 'Blending mode';
+    }
     blendSel.disabled = !l;
-    blendSel.value = l ? l.blendMode : 'normal';
-    if (!blendSel.value) blendSel.value = 'normal';
+
+    const mixedValue = (key) => list.length > 1
+      && list.some((layer) => Math.round(((layer[key] == null ? 1 : layer[key]) * 100))
+        !== Math.round(((list[0][key] == null ? 1 : list[0][key]) * 100)));
     opacity.enable(!!l);
     fill.enable(!!l);
-    opacity.set(l ? (l.opacity == null ? 1 : l.opacity) : 1);
-    fill.set(l ? (l.fillOpacity == null ? 1 : l.fillOpacity) : 1);
+    opacity.set(l ? (l.opacity == null ? 1 : l.opacity) : 1, mixedValue('opacity'));
+    fill.set(l ? (l.fillOpacity == null ? 1 : l.fillOpacity) : 1, mixedValue('fillOpacity'));
+
     for (const b of lockBtns) {
-      b.node.classList.toggle('active', !!(l && l.locked[b.key]));
+      const states = list.map((layer) => isLayerLockOn(layer, b.key));
+      const allOn = states.length > 0 && states.every(Boolean);
+      const mixed = states.some(Boolean) && !allOn;
+      b.node.classList.toggle('active', allOn);
+      b.node.classList.toggle('mixed', mixed);
+      b.node.setAttribute('aria-pressed', mixed ? 'mixed' : String(allOn));
+      b.node.style.borderStyle = mixed ? 'dashed' : '';
+      b.node.style.borderColor = mixed ? 'var(--accent, #7c6af6)' : '';
+      b.node.title = mixed
+        ? `${b.title} (mixed selection; click to lock all)`
+        : allOn ? b.title.replace(/^Lock /, 'Unlock ') : b.title;
       b.node.disabled = !l;
     }
   }
