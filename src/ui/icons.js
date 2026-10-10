@@ -126,6 +126,7 @@ const P = {
   pause: '<path d="M5.5 3.5v9M10.5 3.5v9"/>',
   tween: '<circle cx="3.5" cy="8" r="1.8"/><circle cx="12.5" cy="8" r="1.8"/><path d="M6 8h4" stroke-dasharray="1.4 1.4"/>',
   duplicate: '<rect x="2.5" y="2.5" width="8" height="8" rx="1"/><rect x="5.5" y="5.5" width="8" height="8" rx="1"/>',
+  search: '<circle cx="6.8" cy="6.8" r="4.2"/><path d="m10 10 4 4"/>',
 };
 
 /**
