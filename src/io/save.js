@@ -12,7 +12,7 @@ import { writeICNS } from './icns.js';
 /**
  * Saving and exporting.
  *
- * Saving writes the lossless `.pkd` project; exporting renders the composite
+ * Saving writes the lossless `.rytf` project; exporting renders the composite
  * (or one file per top-level layer) to PNG/JPEG/WebP/HEIC/ICNS, or hands off to
  * the PSD and SVG writers.
  */
@@ -100,14 +100,14 @@ export async function saveDocument(doc) {
  */
 export async function saveDocumentAs(doc) {
   if (!doc) return false;
-  const suggested = `${baseName(doc.name)}.pkd`;
+  const suggested = `${baseName(doc.name)}.rytf`;
 
   if (pickerSupported()) {
     let handle;
     try {
       handle = await window.showSaveFilePicker({
         suggestedName: suggested,
-        types: [{ description: 'Rylia Canvas project', accept: { 'application/x-pikado': ['.pkd'] } }],
+        types: [{ description: 'Rylia Canvas project (.rytf)', accept: { 'application/x-rylia-canvas': ['.rytf'] } }],
       });
     } catch (err) {
       if (err && err.name === 'AbortError') return false;
