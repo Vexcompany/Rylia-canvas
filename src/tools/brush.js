@@ -601,8 +601,8 @@ class BrushTool extends BrushToolBase {
       strokeLabel: 'Brush',
       options: withBlendMode([
         { key: 'preset', label: 'Brush Preset', type: 'custom', default: 'round-hard', render: renderBrushPresetControl },
-        ...brushOptionDescriptors(),
-        ...BRUSH_ADVANCED_OPTIONS,
+        ...tweakDefaults(brushOptionDescriptors(), { size: 24, hardness: 100, smoothing: 15 }),
+        ...tweakDefaults(BRUSH_ADVANCED_OPTIONS, { spacing: 10 }),
       ]),
     });
   }
