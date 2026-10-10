@@ -252,7 +252,10 @@ export async function openFile(file, opts = {}) {
   } else if (ext === 'rytf' || ext === 'pkd' || type === 'application/x-rylia-canvas' || type === 'application/x-pikado') {
     doc = await loadPKD(await readFileAsArrayBuffer(file));
     if (!doc.name || doc.name === 'Untitled') doc.name = stemOf(name);
-    if (file.handle) doc.fileHandle = file.handle;
+    // Only retain a writable handle for the current format. Opening a legacy
+    // `.pkd` should make Save prompt for a `.rytf` conversion, not write new
+    // RYTF bytes into a file still named `.pkd`.
+    if (file.handle && ext === 'rytf') doc.fileHandle = file.handle;
   } else if (ext === 'svg' || type === 'image/svg+xml') {
     doc = await importSVG(await readFileAsText(file), stemOf(name));
   } else {
