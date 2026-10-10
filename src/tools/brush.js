@@ -469,11 +469,127 @@ export class BrushToolBase extends Tool {
 
 const BLEND_OPTIONS = BLEND_MODES.map((m) => ({ value: m.id, label: m.name }));
 
+
+/* ------------------------------------------------------------------ */
+/* Brush presets                                                       */
+/* ------------------------------------------------------------------ */
+
+const BRUSH_PRESET_STORAGE_KEY = 'rylia-canvas:brush-presets:v1';
+
+const BUILTIN_BRUSH_PRESETS = [
+  { id: 'round-hard', name: 'Round — Hard', values: { size: 24, hardness: 100, opacity: 100, flow: 100, spacing: 10, smoothing: 15, shape: 'round', roundness: 100, angle: 0, sizeJitter: 0, opacityJitter: 0, scatter: 0, angleJitter: 0, pressureSize: true, pressureOpacity: false, airbrush: false } },
+  { id: 'round-soft', name: 'Round — Soft', values: { size: 64, hardness: 0, opacity: 85, flow: 35, spacing: 8, smoothing: 25, shape: 'round', roundness: 100, angle: 0, sizeJitter: 0, opacityJitter: 0, scatter: 0, angleJitter: 0, pressureSize: true, pressureOpacity: true, airbrush: false } },
+  { id: 'pencil', name: 'Pencil', values: { size: 4, hardness: 100, opacity: 100, flow: 100, spacing: 5, smoothing: 0, shape: 'round', roundness: 100, angle: 0, sizeJitter: 0, opacityJitter: 0, scatter: 0, angleJitter: 0, pressureSize: true, pressureOpacity: false, airbrush: false } },
+  { id: 'ink-liner', name: 'Ink Liner', values: { size: 5, hardness: 100, opacity: 100, flow: 100, spacing: 7, smoothing: 45, shape: 'round', roundness: 100, angle: 0, sizeJitter: 0, opacityJitter: 0, scatter: 0, angleJitter: 0, pressureSize: true, pressureOpacity: false, airbrush: false } },
+  { id: 'airbrush', name: 'Airbrush', values: { size: 90, hardness: 0, opacity: 65, flow: 18, spacing: 8, smoothing: 30, shape: 'round', roundness: 100, angle: 0, sizeJitter: 0, opacityJitter: 0, scatter: 0, angleJitter: 0, pressureSize: false, pressureOpacity: true, airbrush: true } },
+  { id: 'flat-square', name: 'Flat Square', values: { size: 32, hardness: 100, opacity: 100, flow: 100, spacing: 12, smoothing: 20, shape: 'square', roundness: 100, angle: 0, sizeJitter: 0, opacityJitter: 0, scatter: 0, angleJitter: 0, pressureSize: true, pressureOpacity: false, airbrush: false } },
+  { id: 'scatter', name: 'Scatter', values: { size: 18, hardness: 70, opacity: 90, flow: 65, spacing: 35, smoothing: 0, shape: 'round', roundness: 100, angle: 0, sizeJitter: 35, opacityJitter: 20, scatter: 80, angleJitter: 100, pressureSize: true, pressureOpacity: false, airbrush: false } },
+];
+
+const BRUSH_PRESET_KEYS = [
+  'size', 'hardness', 'opacity', 'flow', 'smoothing', 'airbrush',
+  'spacing', 'angle', 'roundness', 'sizeJitter', 'opacityJitter',
+  'scatter', 'angleJitter', 'shape', 'pressureSize', 'pressureOpacity',
+];
+
+function loadCustomBrushPresets() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(BRUSH_PRESET_STORAGE_KEY) || '[]');
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((p) => p && typeof p.id === 'string' && typeof p.name === 'string' && p.values && typeof p.values === 'object');
+  } catch {
+    return [];
+  }
+}
+
+function saveCustomBrushPresets(presets) {
+  try {
+    localStorage.setItem(BRUSH_PRESET_STORAGE_KEY, JSON.stringify(presets));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function brushPresetById(id) {
+  return BUILTIN_BRUSH_PRESETS.find((p) => p.id === id)
+    || loadCustomBrushPresets().find((p) => p.id === id)
+    || null;
+}
+
+function renderBrushPresetControl(container, state, onChange, descriptor) {
+  const select = el('select.pk-select.pk-ob-select', { 'aria-label': 'Brush preset' });
+  const save = el('button.pk-btn.subtle.pk-ob-btn', { type: 'button', text: 'Save', title: 'Save current brush settings as a custom preset' });
+  const remove = el('button.pk-btn.subtle.pk-ob-btn', { type: 'button', text: 'Delete', title: 'Delete selected custom brush preset' });
+
+  const refill = (selected = state[descriptor.key]) => {
+    const custom = loadCustomBrushPresets();
+    const presets = [...BUILTIN_BRUSH_PRESETS, ...custom];
+    select.replaceChildren(...presets.map((p) => el('option', { value: p.id, text: p.name })));
+    select.value = presets.some((p) => p.id === selected) ? selected : BUILTIN_BRUSH_PRESETS[0].id;
+    remove.disabled = !custom.some((p) => p.id === select.value);
+  };
+
+  select.addEventListener('change', () => onChange(descriptor.key, select.value));
+  save.addEventListener('click', () => {
+    const name = window.prompt('Name this brush preset:');
+    if (!name || !name.trim()) return;
+    const id = 'custom-' + (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function'
+      ? globalThis.crypto.randomUUID()
+      : Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
+    const values = {};
+    for (const key of BRUSH_PRESET_KEYS) values[key] = state[key];
+    const custom = loadCustomBrushPresets();
+    custom.push({ id, name: name.trim().slice(0, 48), values });
+    if (!saveCustomBrushPresets(custom)) {
+      window.alert('Could not save brush presets on this device. Check local storage availability.');
+      return;
+    }
+    refill(id);
+    onChange(descriptor.key, id);
+  });
+  remove.addEventListener('click', () => {
+    const id = select.value;
+    if (!id.startsWith('custom-')) return;
+    const custom = loadCustomBrushPresets().filter((p) => p.id !== id);
+    if (!saveCustomBrushPresets(custom)) {
+      window.alert('Could not update brush presets on this device.');
+      return;
+    }
+    const fallback = BUILTIN_BRUSH_PRESETS[0].id;
+    refill(fallback);
+    onChange(descriptor.key, fallback);
+  });
+
+  refill();
+  container.append(select, save, remove);
+  return {
+    sync: (value) => {
+      if (![...select.options].some((o) => o.value === value)) refill(value);
+      select.value = value;
+      remove.disabled = !value.startsWith('custom-') || !loadCustomBrushPresets().some((p) => p.id === value);
+    },
+  };
+}
+
+const BRUSH_ADVANCED_OPTIONS = [
+  { key: 'shape', label: 'Tip', type: 'select', default: 'round', options: [{ value: 'round', label: 'Round' }, { value: 'square', label: 'Square' }] },
+  { key: 'spacing', label: 'Spacing', type: 'slider', min: 1, max: 100, step: 1, default: 8, unit: '%' },
+  { key: 'roundness', label: 'Roundness', type: 'slider', min: 1, max: 100, step: 1, default: 100, unit: '%' },
+  { key: 'angle', label: 'Angle', type: 'angle', min: -180, max: 180, step: 1, default: 0, unit: '°' },
+  { key: 'sizeJitter', label: 'Size Jitter', type: 'slider', min: 0, max: 100, step: 1, default: 0, unit: '%' },
+  { key: 'opacityJitter', label: 'Opacity Jitter', type: 'slider', min: 0, max: 100, step: 1, default: 0, unit: '%' },
+  { key: 'scatter', label: 'Scatter', type: 'slider', min: 0, max: 100, step: 1, default: 0, unit: '%' },
+  { key: 'angleJitter', label: 'Angle Jitter', type: 'slider', min: 0, max: 100, step: 1, default: 0, unit: '%' },
+  { key: 'pressureSize', label: 'Pen Pressure: Size', type: 'checkbox', default: true },
+  { key: 'pressureOpacity', label: 'Pen Pressure: Opacity', type: 'checkbox', default: false },
+];
+
 /** Insert the blend-mode select right after the tip controls (size/hardness). */
 function withBlendMode(list) {
   const mode = { key: 'blendMode', label: 'Mode', type: 'select', options: BLEND_OPTIONS, default: 'normal' };
   let at = 0;
-  while (at < list.length && (list[at].key === 'size' || list[at].key === 'hardness')) at++;
+  while (at < list.length && ['preset', 'size', 'hardness'].includes(list[at].key)) at++;
   return [...list.slice(0, at), mode, ...list.slice(at)];
 }
 
@@ -483,7 +599,11 @@ class BrushTool extends BrushToolBase {
       id: 'brush', name: 'Brush Tool', icon: 'brush', cursor: 'crosshair', shortcut: 'B',
       group: 'brush', groupOrder: 7,
       strokeLabel: 'Brush',
-      options: withBlendMode(brushOptionDescriptors()),
+      options: withBlendMode([
+        { key: 'preset', label: 'Brush Preset', type: 'custom', default: 'round-hard', render: renderBrushPresetControl },
+        ...brushOptionDescriptors(),
+        ...BRUSH_ADVANCED_OPTIONS,
+      ]),
     });
   }
 
@@ -498,6 +618,15 @@ class BrushTool extends BrushToolBase {
 
   getCursor() {
     return 'crosshair';
+  }
+
+  onOptionChange(key, value) {
+    if (key !== 'preset') return;
+    const preset = brushPresetById(value);
+    if (!preset) return;
+    for (const [setting, settingValue] of Object.entries(preset.values)) {
+      if (BRUSH_PRESET_KEYS.includes(setting) && settingValue !== undefined) this.state[setting] = settingValue;
+    }
   }
 
   makeStroke(e, doc, layer) {
