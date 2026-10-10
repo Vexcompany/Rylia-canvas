@@ -22,6 +22,7 @@ import './suites/fonts.test.js';
 import './suites/io.test.js';
 import './suites/drop.test.js';
 import './suites/smart.test.js';
+import './suites/transform.test.js';
 import './suites/liquify.test.js';
 import './suites/channels.test.js';
 import './suites/select.test.js';

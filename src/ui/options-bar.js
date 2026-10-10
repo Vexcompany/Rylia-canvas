@@ -29,6 +29,7 @@ let transformMod = null;
 let transformLoading = null;
 /** key -> {input} for the transform fields. */
 let transformInputs = new Map();
+let transformAspectButton = null;
 
 /**
  * Build the options bar into `rootEl`.
@@ -57,6 +58,7 @@ function rebuild() {
   closePopover();
   controls = new Map();
   transformInputs = new Map();
+  transformAspectButton = null;
   root.replaceChildren();
 
   const tool = app.tool;
@@ -460,7 +462,8 @@ const TRANSFORM_FIELDS = [
   { key: 'width', label: 'W', unit: '%', step: 0.1, fallback: 100 },
   { key: 'height', label: 'H', unit: '%', step: 0.1, fallback: 100 },
   { key: 'angle', label: 'Angle', unit: '°', step: 0.1, fallback: 0 },
-  { key: 'skewX', label: 'Skew', unit: '°', step: 0.1, fallback: 0 },
+  { key: 'skewX', label: 'Skew X', unit: '°', step: 0.1, fallback: 0 },
+  { key: 'skewY', label: 'Skew Y', unit: '°', step: 0.1, fallback: 0 },
 ];
 
 function ensureTransformModule() {
@@ -514,8 +517,33 @@ function renderTransform() {
     });
     transformInputs.set(f.key, { input: num, fallback: f.fallback });
     root.appendChild(el('div.pk-ob-field', {}, label, num, el('span.pk-unit', { text: f.unit })));
+    if (f.key === 'width') {
+      transformAspectButton = el('button.pk-icon-btn.pk-ob-ratio-lock', {
+        type: 'button', title: 'Lock aspect ratio', 'aria-label': 'Lock aspect ratio',
+        'aria-pressed': 'false', html: icon('unlock', { size: 14 }),
+        onclick: toggleTransformAspectLock,
+      });
+      root.appendChild(transformAspectButton);
+    }
   }
 
+  root.appendChild(el('div.pk-vsep'));
+  const actions = el('div.pk-ob-transform-actions', {
+    style: { display: 'flex', alignItems: 'center', gap: '4px' },
+  });
+  actions.append(
+    transformActionButton('Flip horizontal', 'flip-h', 'flipTransform', 'h'),
+    transformActionButton('Flip vertical', 'flip-v', 'flipTransform', 'v'),
+    el('button.pk-btn.subtle.pk-ob-btn', {
+      type: 'button', text: '−90°', title: 'Rotate counter-clockwise 90°',
+      onclick: () => runTransformAction('rotateTransform', -90),
+    }),
+    el('button.pk-btn.subtle.pk-ob-btn', {
+      type: 'button', text: '+90°', title: 'Rotate clockwise 90°',
+      onclick: () => runTransformAction('rotateTransform', 90),
+    })
+  );
+  root.appendChild(actions);
   root.appendChild(el('div.pk-vsep'));
   root.appendChild(
     el('button.pk-icon-btn.pk-ob-cancel', {
@@ -531,6 +559,30 @@ function renderTransform() {
       onclick: () => endTransform('commit'),
     })
   );
+}
+
+function transformActionButton(title, iconName, method, ...args) {
+  return el('button.pk-icon-btn.pk-ob-transform-action', {
+    type: 'button', title, 'aria-label': title,
+    html: icon(iconName, { size: 14 }),
+    onclick: () => runTransformAction(method, ...args),
+  });
+}
+
+function runTransformAction(method, ...args) {
+  ensureTransformModule().then((mod) => {
+    if (typeof mod[method] === 'function') mod[method](...args);
+    syncTransform();
+  });
+}
+
+function toggleTransformAspectLock() {
+  ensureTransformModule().then((mod) => {
+    const values = typeof mod.getTransformNumeric === 'function' ? mod.getTransformNumeric() : null;
+    if (!values || typeof mod.setTransformAspectLock !== 'function') return;
+    mod.setTransformAspectLock(!values.lockAspectRatio);
+    syncTransform();
+  });
 }
 
 /** Finish the session through the transform module, falling back to the tool. */
@@ -555,6 +607,19 @@ function syncTransform() {
     const v = typeof raw === 'number' && Number.isFinite(raw) ? raw : fallback;
     const rounded = Math.round(v * 100) / 100;
     if (Number(input.value) !== rounded) input.value = rounded;
+  }
+  if (transformAspectButton) {
+    const locked = !!values.lockAspectRatio;
+    transformAspectButton.classList.toggle('active', locked);
+    transformAspectButton.setAttribute('aria-pressed', String(locked));
+    transformAspectButton.title = locked
+      ? 'Unlock aspect ratio'
+      : 'Lock aspect ratio for numeric scaling and corner drags';
+    const iconName = locked ? 'link' : 'unlock';
+    if (transformAspectButton.dataset.icon !== iconName) {
+      transformAspectButton.innerHTML = icon(iconName, { size: 14 });
+      transformAspectButton.dataset.icon = iconName;
+    }
   }
 }
 
