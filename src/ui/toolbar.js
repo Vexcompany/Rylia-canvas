@@ -5,6 +5,7 @@ import { toolGroups, getTool } from '../tools/base.js';
 import { toCss } from '../core/color.js';
 import { cycleScreenMode, getScreenMode, screenModeLabel, toggleQuickMask } from './shortcuts.js';
 import './toolbar.css';
+import { openToolPicker } from './tool-picker.js';
 
 /**
  * The vertical tool strip.
@@ -283,6 +284,14 @@ let quickMaskBtn = null;
 let screenBtn = null;
 
 function buildExtras() {
+  const toolPickerBtn = el('button.pk-tool.pk-tool-extra', {
+    type: 'button',
+    title: 'Find a Tool',
+    'aria-label': 'Find a Tool',
+    html: icon('search', { size: 18 }),
+    onclick: () => openToolPicker(),
+  });
+
   quickMaskBtn = el('button.pk-tool.pk-tool-extra', {
     type: 'button',
     title: 'Edit in Quick Mask Mode (Q)',
@@ -296,7 +305,7 @@ function buildExtras() {
     onclick: () => cycleScreenMode(),
   });
 
-  return el('div.pk-tool-extras', {}, quickMaskBtn, screenBtn);
+  return el('div.pk-tool-extras', {}, toolPickerBtn, quickMaskBtn, screenBtn);
 }
 
 function syncQuickMask() {
