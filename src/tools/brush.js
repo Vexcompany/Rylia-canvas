@@ -220,7 +220,8 @@ function paintColorFor(layer, color) {
  *
  * @deprecated Use `PaintStroke` with a `blendMode` option.
  */
-export { PaintStroke as BlendPaintStroke };
+const BlendPaintStroke = PaintStroke;
+export { BlendPaintStroke };
 
 /* ================================================================== */
 /* BrushToolBase                                                       */
