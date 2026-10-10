@@ -3,7 +3,7 @@ import { app } from '../core/app.js';
 import { PaintStroke, EffectStroke, brushOptionDescriptors, brushFromOptions } from '../paint/brush-engine.js';
 import { BLEND_MODES } from '../core/blend.js';
 import { getComposite } from '../render/compositor.js';
-import { createCanvas, ctx2dRead, clamp, clamp255 } from '../core/util.js';
+import { createCanvas, ctx2dRead, clamp, clamp255, el } from '../core/util.js';
 import { rgb, rgb2hsl, hsl2rgb, toCss, luminance, colorDistance } from '../core/color.js';
 import { OVERLAY } from '../ui/brand.js';
 import { cmd, sep } from '../ui/canvas-menu.js';
