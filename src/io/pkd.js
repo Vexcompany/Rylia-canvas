@@ -5,10 +5,10 @@ import { createCanvas, ctx2d, loadImage } from '../core/util.js';
 import { fontTableFor } from '../text/font-table.js';
 
 /**
- * `.pkd` — the lossless Rylia Canvas project format.
+ * `.rytf` — the lossless Rylia Canvas project format.
  *
  * Layout:
- *   0   8 bytes   ASCII magic "PIKADO01"
+ *   0   8 bytes   ASCII magic "RYTF0001" (legacy `.pkd` uses "PIKADO01")
  *   8   4 bytes   uint32 (little-endian) manifest byte length
  *   12  n bytes   UTF-8 JSON manifest
  *   12+n …        payload blobs, back to back
@@ -20,7 +20,8 @@ import { fontTableFor } from '../text/font-table.js';
  * without a bespoke schema per payload type.
  */
 
-const MAGIC = 'PIKADO01';
+const MAGIC = 'RYTF0001';
+const LEGACY_MAGIC = 'PIKADO01';
 const FORMAT_VERSION = 1;
 
 /* ------------------------------------------------------------------ */
@@ -133,7 +134,7 @@ function createDecoder(decoded) {
 /* ------------------------------------------------------------------ */
 
 /**
- * Serialise a document to a `.pkd` project blob.
+ * Serialise a document to a `.rytf` project blob.
  * @param {PikaDocument} doc
  * @returns {Promise<Blob>}
  */
@@ -235,7 +236,7 @@ export async function savePKD(doc) {
   });
 
   const manifest = {
-    format: 'pikado',
+    format: 'rytf',
     version: FORMAT_VERSION,
     created: new Date().toISOString(),
     /*
@@ -298,7 +299,7 @@ export async function savePKD(doc) {
   for (let i = 0; i < 8; i++) header[i] = MAGIC.charCodeAt(i);
   new DataView(header.buffer).setUint32(8, manifestBytes.length, true);
 
-  return new Blob([header, manifestBytes, ...payloads], { type: 'application/x-pikado' });
+  return new Blob([header, manifestBytes, ...payloads], { type: 'application/x-rylia-canvas' });
 }
 
 /* ------------------------------------------------------------------ */
@@ -321,7 +322,7 @@ async function pngToCanvas(bytes) {
 }
 
 /**
- * Rebuild a document from a `.pkd` project file.
+ * Rebuild a document from a `.rytf` project file, or a legacy `.pkd` file.
  * @param {ArrayBuffer} arrayBuffer
  * @returns {Promise<PikaDocument>}
  */
@@ -330,12 +331,12 @@ export async function loadPKD(arrayBuffer) {
   if (u8.length < 12) throw new Error('The project file is empty');
   let magic = '';
   for (let i = 0; i < 8; i++) magic += String.fromCharCode(u8[i]);
-  if (magic !== MAGIC) throw new Error('Not a Rylia Canvas project file');
+  if (magic !== MAGIC && magic !== LEGACY_MAGIC) throw new Error('Not a Rylia Canvas project file');
 
   const manifestLength = new DataView(arrayBuffer).getUint32(8, true);
   if (12 + manifestLength > u8.length) throw new Error('The project file is truncated');
   const manifest = JSON.parse(new TextDecoder().decode(u8.subarray(12, 12 + manifestLength)));
-  if (manifest.format !== 'pikado') throw new Error('Unrecognised project manifest');
+  if (manifest.format !== 'rytf' && manifest.format !== 'pikado') throw new Error('Unrecognised project manifest');
 
   const base = 12 + manifestLength;
   const decoded = await Promise.all((manifest.blobs || []).map(async (entry) => {
