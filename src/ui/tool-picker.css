@@ -1,0 +1,99 @@
+/* Searchable tool index, kept compact enough to use on narrow screens. */
+.pk-tool-picker-dialog .pk-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.pk-tool-picker-search {
+  width: 100%;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+}
+.pk-tool-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: min(52vh, 420px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.pk-tool-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 43px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.pk-tool-picker-item:hover,
+.pk-tool-picker-item:focus-visible {
+  background: var(--s3);
+  outline: none;
+}
+.pk-tool-picker-item.active {
+  background: var(--accent-dim);
+  color: var(--accent-hi);
+}
+.pk-tool-picker-icon {
+  display: flex;
+  flex: 0 0 24px;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+}
+.pk-tool-picker-icon svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  fill: none;
+}
+.pk-tool-picker-copy {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.pk-tool-picker-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pk-tool-picker-group {
+  color: var(--text-faint);
+  font-size: var(--fs-sm);
+  text-transform: capitalize;
+}
+.pk-tool-picker-key {
+  flex: 0 0 auto;
+  min-width: 22px;
+  padding: 3px 6px;
+  border-radius: var(--r-sm);
+  background: var(--s3);
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+.pk-tool-picker-empty {
+  padding: 22px 8px;
+  color: var(--text-dim);
+  text-align: center;
+}
+.pk-tool-picker-empty[hidden],
+.pk-tool-picker-list[hidden] {
+  display: none;
+}
+@media (max-width: 520px) {
+  .pk-tool-picker-dialog.pk-dialog {
+    width: min(430px, calc(100vw - 24px)) !important;
+  }
+  .pk-tool-picker-list {
+    max-height: 48vh;
+  }
+}
