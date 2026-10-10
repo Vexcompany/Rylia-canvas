@@ -7,7 +7,7 @@ import { icon } from '../icons.js';
 import { BLEND_MODES } from '../../core/blend.js';
 import { LayerType, createGroupLayer } from '../../core/layer.js';
 import { hasStyles } from '../../effects/styles.js';
-import { listAdjustments } from '../../adjustments/registry.js';
+import { getAdjustment, listAdjustments } from '../../adjustments/registry.js';
 import { toHex } from '../../core/color.js';
 import { paramDialog } from '../dialog.js';
 import * as ops from '../../layers/ops.js';
@@ -484,6 +484,11 @@ function buildLayersPanel(bodyEl) {
 
     name.addEventListener('dblclick', (e) => {
       e.stopPropagation();
+      const doc = app.activeDoc, l = row._item && row._item.layer;
+      if (doc && l && l.type === LayerType.ADJUSTMENT) {
+        editAdjustmentLayer(doc, l);
+        return;
+      }
       startRename(row);
     });
 
@@ -500,6 +505,10 @@ function buildLayersPanel(bodyEl) {
       if (e.target.closest('button, input, .pk-lay-name, .pk-lay-thumbbox')) return;
       const doc = app.activeDoc, l = row._item && row._item.layer;
       if (!doc || !l) return;
+      if (l.type === LayerType.ADJUSTMENT) {
+        editAdjustmentLayer(doc, l);
+        return;
+      }
       openStyleDialog(doc, l);
     });
 
@@ -1293,6 +1302,47 @@ function soloLayer(doc, layer) {
   const alreadySolo = all.every((x) => keep.has(x.id) || !x.visible);
   for (const x of all) x.visible = alreadySolo ? true : keep.has(x.id);
   doc.commit(alreadySolo ? 'Show All Layers' : 'Show Only This Layer');
+}
+
+/**
+ * Edit an adjustment layer without baking its result into the source pixels.
+ * Live changes update the compositor for preview; Cancel restores the exact
+ * previous payload, while OK creates one undoable history entry.
+ */
+async function editAdjustmentLayer(doc, layer) {
+  const payload = layer && layer.adjustment;
+  if (!doc || !payload) return;
+  const def = getAdjustment(payload.kind);
+  if (!def) {
+    app.toast('This adjustment is unavailable in the current build.', 'error');
+    return;
+  }
+  const params = def.params || [];
+  if (!params.some((p) => p.key !== undefined)) {
+    app.toast('This adjustment has no editable settings.');
+    return;
+  }
+
+  const original = structuredClone(payload.params || def.defaults || {});
+  const preview = (next) => {
+    layer.adjustment = {
+      ...payload,
+      params: structuredClone(next == null ? original : next),
+    };
+    doc.touch('adjustment-preview');
+  };
+
+  await paramDialog({
+    title: def.name.replace(/(\.\.\.|…)$/, ''),
+    width: def.dialogWidth || 400,
+    state: structuredClone(original),
+    params,
+    onPreview: preview,
+    onCommit: (result) => {
+      layer.adjustment = { ...payload, params: structuredClone(result) };
+      doc.commit('Edit Adjustment Layer');
+    },
+  });
 }
 
 /** Lazily open the layer style dialog; the effects module owns it. */
