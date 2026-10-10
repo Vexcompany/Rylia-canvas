@@ -66,7 +66,7 @@ const MAX_GIF_FRAMES = 300;
  * useless one: Chrome and Firefox label a `.heic` from the disk with no type at
  * all, and a server will often call it `application/octet-stream`.
  */
-const KNOWN_EXTENSIONS = new Set(['psd', 'psb', 'pkd', 'svg', 'heic', 'heif', 'hif', 'icns']);
+const KNOWN_EXTENSIONS = new Set(['psd', 'psb', 'rytf', 'pkd', 'svg', 'heic', 'heif', 'hif', 'icns']);
 
 function extensionOf(name) {
   const m = /\.([a-z0-9]+)$/i.exec(String(name || ''));
@@ -249,7 +249,7 @@ export async function openFile(file, opts = {}) {
       onOversize: askAboutOversizePSD,
     });
     doc.name = stemOf(name);
-  } else if (ext === 'pkd' || type === 'application/x-pikado') {
+  } else if (ext === 'rytf' || ext === 'pkd' || type === 'application/x-rylia-canvas' || type === 'application/x-pikado') {
     doc = await loadPKD(await readFileAsArrayBuffer(file));
     if (!doc.name || doc.name === 'Untitled') doc.name = stemOf(name);
     if (file.handle) doc.fileHandle = file.handle;
@@ -440,6 +440,7 @@ async function fetchDroppedImage(url, name) {
     || KNOWN_EXTENSIONS.has(extensionOf(name))
     || !type
     || type === 'application/octet-stream'
+    || type === 'application/x-rylia-canvas'
     || type === 'application/x-pikado';
   if (!openable) {
     app.toast('That link points at a page, not an image.', 'error', 5000);
